@@ -27,7 +27,8 @@ module.exports = NodeHelper.create({
       : new Date(Date.now());
 
     var endDate = new Date(Date.now());
-    endDate.setDate(startDate.getDate() + this.config.numberOfDaysToDisplay);
+    // Request extra days as a buffer to ensure we have enough non-empty days to display
+    endDate.setDate(startDate.getDate() + this.config.numberOfDaysToDisplay + 7);
 
     try {
       //   const menu = await this.titanSchoolsClient.fetchMockMenu();
