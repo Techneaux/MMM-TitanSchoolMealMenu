@@ -1,6 +1,12 @@
 const axios = require("axios").default;
 
 /**
+ * Number of extra days to request from the API as a buffer
+ * to ensure we have enough non-empty days to display
+ */
+const BUFFER_DAYS = 7;
+
+/**
  * A _very_ lightweight client for the TitanSchools API.
  */
 class TitanSchoolsClient {
@@ -256,7 +262,7 @@ class TitanSchoolsClient {
     const menus = this.extractMenusByDate(data);
 
     // Generate extra days as buffer to ensure we have enough non-empty days
-    const bufferDays = this.numberOfDaysToDisplay + 7;
+    const bufferDays = this.numberOfDaysToDisplay + BUFFER_DAYS;
     const allUpcomingDays = upcomingRelativeDates(bufferDays).map((day) => {
       // day = { date: '9-6-2021', label: 'Today' }; // Possible labels: 'Today', 'Tomorrow', or a day of the week
       const breakfastAndLunchForThisDay = menus.reduce(
@@ -289,8 +295,9 @@ class TitanSchoolsClient {
     });
 
     // Filter to keep only days with at least some menu data (breakfast OR lunch)
+    // Check for actual content, not just truthy values (excludes empty strings)
     const nonEmptyDays = allUpcomingDays.filter(
-      (day) => day.breakfast || day.lunch
+      (day) => (day.breakfast && day.breakfast.trim()) || (day.lunch && day.lunch.trim())
     );
 
     // Return only the requested number of non-empty days
@@ -365,3 +372,4 @@ const upcomingRelativeDates = (numberOfDays = 5) => {
 // t.fetchMockMenu();
 
 module.exports = TitanSchoolsClient;
+module.exports.BUFFER_DAYS = BUFFER_DAYS;

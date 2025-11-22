@@ -51,7 +51,7 @@ The module follows MagicMirror²'s standard architecture with three main compone
    - Date format requirement: API expects dates as `m-d-Y` (e.g., `12-5-2021`)
    - Two-step data processing:
      - `extractMenusByDate()`: Normalizes raw API response into breakfast/lunch arrays
-     - `processData()`: Combines data with relative date labels (Today, Tomorrow, day names)
+     - `processData()`: Filters out empty days and returns only the requested number of non-empty days, combining data with relative date labels (Today, Tomorrow, day names)
 
 ### Key Design Patterns
 
@@ -79,7 +79,7 @@ The LinqConnect API returns data in this shape:
 Required fields: `buildingId`, `districtId`
 
 Optional but commonly customized:
-- `numberOfDaysToDisplay` (default: 3) - How many days ahead to show
+- `numberOfDaysToDisplay` (default: 3) - How many days with menu data to display (automatically skips empty days)
 - `recipeCategoriesToInclude` (default: ["Entrees", "Grain"]) - Which food categories to display
 - `updateIntervalMs` (default: 3600000) - How often to refresh data
 - `displayCurrentWeek` (default: false) - Start from beginning of week instead of today
