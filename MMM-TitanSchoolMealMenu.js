@@ -107,6 +107,15 @@ Module.register("MMM-TitanSchoolMealMenu", {
       console.log(this.dataNotification);
       const wrapperDataNotification = document.createElement("div");
 
+      // Check if we have any menu data to display
+      if (this.dataNotification.length === 0) {
+        const noMenuMessage = document.createElement("div");
+        noMenuMessage.className = `small dimmed ${this.config.size || ""}`;
+        noMenuMessage.innerHTML = "No menu available for the upcoming days";
+        wrapper.appendChild(noMenuMessage);
+        return wrapper;
+      }
+
       const meals = document.createElement("ul");
       meals.className = `meal-list ${this.config.size || ""}`;
       this.dataNotification.forEach((dayMenu, index) => {
