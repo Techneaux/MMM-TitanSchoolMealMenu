@@ -3,6 +3,7 @@ Module.register("MMM-TitanSchoolMealMenu", {
     retryDelayMs: 20 * 1000, // milliseconds
     updateIntervalMs: 60 * 60 * 1000, // milliseconds
     numberOfDaysToDisplay: 3,
+    bufferDays: 7, // Extra days to fetch as buffer for filtering empty days. Set to 0 to disable filtering.
     size: "medium",
     todayClass: "large",
     displayCurrentWeek: false,
