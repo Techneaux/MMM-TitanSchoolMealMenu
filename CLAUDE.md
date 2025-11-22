@@ -61,6 +61,8 @@ The module follows MagicMirror²'s standard architecture with three main compone
 
 **Date Label Generation**: The `upcomingRelativeDates()` function generates human-friendly labels (Today, Tomorrow, or day of week) for the configured number of days to display.
 
+**Empty Day Filtering**: When `bufferDays` > 0 (default: 7), the module automatically filters out days without menu data and shows only N non-empty days. When `bufferDays` = 0, it reverts to the old behavior of showing N consecutive calendar days. The `BUFFER_DAYS` constant (7) serves as the default fallback value.
+
 **Error Handling**: API errors are categorized as 500-level (service unavailable) or 400-level (bad request/config issue). The module retries failed requests after `retryDelayMs`.
 
 ## API Response Structure
@@ -79,11 +81,14 @@ The LinqConnect API returns data in this shape:
 Required fields: `buildingId`, `districtId`
 
 Optional but commonly customized:
-- `numberOfDaysToDisplay` (default: 3) - How many days with menu data to display (automatically skips empty days)
+- `numberOfDaysToDisplay` (default: 3) - How many days to display. Meaning depends on `bufferDays`:
+  - If `bufferDays` > 0: Shows N days with menu data (skips empty days like weekends)
+  - If `bufferDays` = 0: Shows N consecutive calendar days (old behavior)
+- `bufferDays` (default: 7) - Number of extra days to fetch as buffer for filtering. Set to 0 to disable filtering and show consecutive days instead. Increase to 14-21 for extended holiday breaks.
 - `recipeCategoriesToInclude` (default: ["Entrees", "Grain"]) - Which food categories to display
 - `updateIntervalMs` (default: 3600000) - How often to refresh data
 - `displayCurrentWeek` (default: false) - Start from beginning of week instead of today
-- `hideEmptyDays` / `hideEmptyMeals` (default: false) - Control visibility of days/meals without data
+- `hideEmptyDays` / `hideEmptyMeals` (default: false) - Control visibility of days/meals without data. Note: When `bufferDays` > 0, empty days are already filtered at the data level, making `hideEmptyDays` redundant.
 - `debug` (default: false) - Enable verbose logging
 
 ## Testing

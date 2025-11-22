@@ -27,8 +27,12 @@ module.exports = NodeHelper.create({
       : new Date(Date.now());
 
     var endDate = new Date(Date.now());
-    // Request extra days as a buffer to ensure we have enough non-empty days to display
-    endDate.setDate(startDate.getDate() + this.config.numberOfDaysToDisplay + TitanSchoolsClient.BUFFER_DAYS);
+    // Request extra days as a buffer if bufferDays > 0 (for filtering empty days)
+    // If bufferDays = 0, only request the exact number of days (old behavior)
+    const daysToRequest = this.config.bufferDays > 0
+      ? this.config.numberOfDaysToDisplay + this.config.bufferDays
+      : this.config.numberOfDaysToDisplay;
+    endDate.setDate(startDate.getDate() + daysToRequest);
 
     try {
       //   const menu = await this.titanSchoolsClient.fetchMockMenu();
@@ -63,6 +67,7 @@ module.exports = NodeHelper.create({
         districtId: payload.districtId,
         recipeCategoriesToInclude: payload.recipeCategoriesToInclude,
         numberOfDaysToDisplay: payload.numberOfDaysToDisplay,
+        bufferDays: payload.bufferDays,
         debug: payload.debug,
       });
       this.config = payload;

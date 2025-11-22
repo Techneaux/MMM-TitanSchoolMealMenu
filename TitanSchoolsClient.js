@@ -30,6 +30,7 @@ class TitanSchoolsClient {
     };
 
     this.numberOfDaysToDisplay = config.numberOfDaysToDisplay;
+    this.bufferDays = config.bufferDays ?? BUFFER_DAYS;
     this.recipeCategoriesToInclude = config.recipeCategoriesToInclude ?? [
       "Main Entree", // Maybe deprecated?
       "Entrees",
@@ -261,9 +262,14 @@ class TitanSchoolsClient {
   processData(data) {
     const menus = this.extractMenusByDate(data);
 
-    // Generate extra days as buffer to ensure we have enough non-empty days
-    const bufferDays = this.numberOfDaysToDisplay + BUFFER_DAYS;
-    const allUpcomingDays = upcomingRelativeDates(bufferDays).map((day) => {
+    // Determine how many days to generate based on bufferDays setting
+    // If bufferDays > 0: Generate extra days for filtering empty days
+    // If bufferDays = 0: Generate exact number requested (old behavior, no filtering)
+    const daysToGenerate = this.bufferDays > 0
+      ? this.numberOfDaysToDisplay + this.bufferDays
+      : this.numberOfDaysToDisplay;
+
+    const allUpcomingDays = upcomingRelativeDates(daysToGenerate).map((day) => {
       // day = { date: '9-6-2021', label: 'Today' }; // Possible labels: 'Today', 'Tomorrow', or a day of the week
       const breakfastAndLunchForThisDay = menus.reduce(
         (menuByMealTime, menu) => {
@@ -294,14 +300,19 @@ class TitanSchoolsClient {
       };
     });
 
-    // Filter to keep only days with at least some menu data (breakfast OR lunch)
-    // Check for actual content, not just truthy values (excludes empty strings)
-    const nonEmptyDays = allUpcomingDays.filter(
-      (day) => (day.breakfast && day.breakfast.trim()) || (day.lunch && day.lunch.trim())
-    );
+    let upcomingMenuByDate;
 
-    // Return only the requested number of non-empty days
-    const upcomingMenuByDate = nonEmptyDays.slice(0, this.numberOfDaysToDisplay);
+    if (this.bufferDays > 0) {
+      // New behavior: Filter empty days and return N non-empty days
+      // Check for actual content, not just truthy values (excludes empty strings)
+      const nonEmptyDays = allUpcomingDays.filter(
+        (day) => (day.breakfast && day.breakfast.trim()) || (day.lunch && day.lunch.trim())
+      );
+      upcomingMenuByDate = nonEmptyDays.slice(0, this.numberOfDaysToDisplay);
+    } else {
+      // Old behavior (bufferDays = 0): Return N consecutive days without filtering
+      upcomingMenuByDate = allUpcomingDays.slice(0, this.numberOfDaysToDisplay);
+    }
 
     console.log(
       `School meal info from titanschools API: ${JSON.stringify(

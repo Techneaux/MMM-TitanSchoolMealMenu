@@ -1,2 +1,12 @@
-node_modules
+# Node modules
+node_modules/
+
+# Test scripts and local utilities
+scratch/
+
+# OS files
 .DS_Store
+
+# IDE files
+.vscode/
+.idea/
