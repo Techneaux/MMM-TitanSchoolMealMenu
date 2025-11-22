@@ -2,7 +2,7 @@
 node_modules/
 
 # Test scripts and local utilities
-scripts/
+scratch/
 
 # OS files
 .DS_Store
