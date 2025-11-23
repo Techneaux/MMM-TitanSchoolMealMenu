@@ -47,6 +47,7 @@ class TitanSchoolsClient {
     this.sideJoiner = config.sideJoiner ?? ", ";
     this.showCategoryLabels = config.showCategoryLabels ?? false;
     this.useOxfordComma = config.useOxfordComma ?? true;
+    this.alternativeLabel = config.alternativeLabel ?? ""; // Support {categoryName} placeholder
 
     this.client = axios.create({
       baseURL: "https://api.linqconnect.com/api/",
@@ -393,7 +394,17 @@ class TitanSchoolsClient {
     if (categorizedGroups.alternative.length > 0) {
       categorizedGroups.alternative.forEach((group) => {
         const itemsText = group.recipes.join(this.sideJoiner);
-        const alternativeText = `Or ${group.categoryName}: ${itemsText}`;
+
+        let alternativeText;
+        if (this.alternativeLabel === "") {
+          // No label - just show the items with "Or" prefix
+          alternativeText = `Or ${itemsText}`;
+        } else {
+          // Use the configured label, replacing {categoryName} placeholder if present
+          const label = this.alternativeLabel.replace('{categoryName}', group.categoryName);
+          alternativeText = `${label} ${itemsText}`;
+        }
+
         alternativeParts.push(alternativeText);
       });
     }
