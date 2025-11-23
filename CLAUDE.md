@@ -99,8 +99,7 @@ The `formatMenu()` method applies different grammar rules based on category type
 - Example: `"Cheeseburger or Hamburger or Spicy Chicken Sandwich"`
 
 **Sides:**
-- 2 items: joined with `sideJoiner` (default: ", ")
-- 3+ items: uses `joinWithConjunction()` with "and" + Oxford comma (if enabled)
+- Always joined with "and" conjunction using `joinWithConjunction()` with Oxford comma (if enabled)
 - Prefixed with "with " when there are entrees
 - Example: `"with Macaroni & Cheese, Green Beans, and Fresh Veggies"`
 
@@ -152,8 +151,6 @@ Optional but commonly customized:
 **Formatting Options** (added in smart natural language formatting system):
 - `entreeJoiner` (default: " or ") - Text used to join multiple entree items
   - Example: Set to ", " for "Cheeseburger, Hamburger, Spicy Chicken" instead of "Cheeseburger or Hamburger or Spicy Chicken"
-- `sideJoiner` (default: ", ") - Text used to join side items
-  - Example: Set to "; " for semicolon separation
 - `showCategoryLabels` (default: false) - Display category labels (e.g., "Entrees:", "Sides:") before menu items
 - `useOxfordComma` (default: true) - Use Oxford comma before final "and" in lists of 3+ items
   - true: "item1, item2, and item3"
