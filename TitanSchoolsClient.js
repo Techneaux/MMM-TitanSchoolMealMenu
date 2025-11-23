@@ -416,6 +416,9 @@ class TitanSchoolsClient {
       result += '. ' + alternativeParts.join('. ');
     }
 
+    // Always add trailing period
+    result += '.';
+
     return result;
   }
 
