@@ -42,6 +42,12 @@ class TitanSchoolsClient {
       // , "Extra"
     ];
 
+    // Formatting options for menu display
+    this.entreeJoiner = config.entreeJoiner ?? " or ";
+    this.sideJoiner = config.sideJoiner ?? ", ";
+    this.showCategoryLabels = config.showCategoryLabels ?? false;
+    this.useOxfordComma = config.useOxfordComma ?? true;
+
     this.client = axios.create({
       baseURL: "https://api.linqconnect.com/api/",
       timeout: 30000,
@@ -233,13 +239,7 @@ class TitanSchoolsClient {
           return {
             date: menuForThisDate.Date,
             breakfastOrLunch,
-            menu: recipeCategories
-              .map((recipeCategory) => {
-                return recipeCategory.Recipes.map(
-                  (recipe) => recipe.RecipeName
-                ).join(" or ");
-              })
-              .join(", "),
+            menu: this.formatMenu(recipeCategories),
           };
         },
         this
@@ -257,6 +257,155 @@ class TitanSchoolsClient {
     }
 
     return menus;
+  }
+
+  /**
+   * Merges recipes that start with "with" into their preceding recipe
+   * @param {Array} recipes - Array of recipe name strings
+   * @returns {Array} - Array of recipe names with "with" items merged
+   */
+  mergeWithItems(recipes) {
+    const merged = [];
+
+    for (let i = 0; i < recipes.length; i++) {
+      const recipe = recipes[i];
+      const isWithItem = recipe.toLowerCase().trim().startsWith('with ');
+
+      if (isWithItem && merged.length > 0) {
+        // Attach this "with" item to the previous recipe
+        merged[merged.length - 1] = `${merged[merged.length - 1]} ${recipe}`;
+      } else {
+        // Regular recipe or first item
+        merged.push(recipe);
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * Categorizes a recipe category name into one of: entrees, sides, or alternative
+   * @param {string} categoryName - The RecipeCategory.CategoryName from the API
+   * @returns {string} - One of: 'entrees', 'sides', 'alternative'
+   */
+  categorizeRecipeCategory(categoryName) {
+    const lowerName = categoryName.toLowerCase();
+
+    // Check for alternative meal options (Box Lunch, Choice 2, etc.)
+    if (lowerName.includes('box lunch') ||
+        lowerName.includes('choice 2') ||
+        lowerName.includes('choice two') ||
+        lowerName.includes('includes fruit')) {
+      return 'alternative';
+    }
+
+    // Check for entrees
+    if (lowerName.includes('entree') || lowerName.includes('main')) {
+      return 'entrees';
+    }
+
+    // Default to sides (includes Sides, Grain, Fruit, Vegetable, etc.)
+    return 'sides';
+  }
+
+  /**
+   * Joins an array of items with proper grammar (commas and "and")
+   * @param {Array} items - Array of strings to join
+   * @param {string} finalConjunction - The word to use before the last item ("and" or "or")
+   * @returns {string} - Grammatically correct joined string
+   */
+  joinWithConjunction(items, finalConjunction = 'and') {
+    if (items.length === 0) return '';
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return `${items[0]} ${finalConjunction} ${items[1]}`;
+
+    // Three or more items
+    const allButLast = items.slice(0, -1);
+    const last = items[items.length - 1];
+    const comma = this.useOxfordComma ? ',' : '';
+
+    return `${allButLast.join(', ')}${comma} ${finalConjunction} ${last}`;
+  }
+
+  /**
+   * Formats recipe categories into a natural language menu string
+   * @param {Array} recipeCategories - Array of RecipeCategory objects from the API
+   * @returns {string} - Formatted menu string
+   */
+  formatMenu(recipeCategories) {
+    // Group categories by type
+    const categorizedGroups = {
+      entrees: [],
+      sides: [],
+      alternative: []
+    };
+
+    recipeCategories.forEach((recipeCategory) => {
+      const type = this.categorizeRecipeCategory(recipeCategory.CategoryName);
+      const recipes = recipeCategory.Recipes.map(r => r.RecipeName);
+      const mergedRecipes = this.mergeWithItems(recipes);
+
+      categorizedGroups[type].push({
+        categoryName: recipeCategory.CategoryName,
+        recipes: mergedRecipes
+      });
+    });
+
+    // Build the menu text
+    const mainParts = [];
+    const alternativeParts = [];
+
+    // Format entrees
+    if (categorizedGroups.entrees.length > 0) {
+      const allEntrees = categorizedGroups.entrees.flatMap(g => g.recipes);
+      let entreesText = allEntrees.join(this.entreeJoiner);
+
+      if (this.showCategoryLabels) {
+        entreesText = `Entrees: ${entreesText}`;
+      }
+
+      mainParts.push(entreesText);
+    }
+
+    // Format sides
+    if (categorizedGroups.sides.length > 0) {
+      const allSides = categorizedGroups.sides.flatMap(g => g.recipes);
+      let sidesText;
+
+      if (allSides.length >= 3) {
+        // Use "and" for lists of 3+ sides
+        sidesText = this.joinWithConjunction(allSides, 'and');
+      } else {
+        sidesText = allSides.join(this.sideJoiner);
+      }
+
+      if (this.showCategoryLabels) {
+        sidesText = `Sides: ${sidesText}`;
+      } else if (categorizedGroups.entrees.length > 0) {
+        // Add "with" prefix if there are entrees
+        sidesText = `with ${sidesText}`;
+      }
+
+      mainParts.push(sidesText);
+    }
+
+    // Format alternative options
+    if (categorizedGroups.alternative.length > 0) {
+      categorizedGroups.alternative.forEach((group) => {
+        const itemsText = group.recipes.join(this.sideJoiner);
+        const alternativeText = `Or ${group.categoryName}: ${itemsText}`;
+        alternativeParts.push(alternativeText);
+      });
+    }
+
+    // Join main parts (entrees + sides) with space, then add alternatives with period separator
+    let result = mainParts.join(' ');
+
+    if (alternativeParts.length > 0) {
+      result += '. ' + alternativeParts.join('. ');
+    }
+
+    return result;
   }
 
   processData(data) {
