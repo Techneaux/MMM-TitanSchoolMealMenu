@@ -71,14 +71,19 @@ The module uses a sophisticated three-stage formatting system to convert raw API
 
 ### Stage 1: Merge "with" Items
 
-The `mergeWithItems()` method (TitanSchoolsClient.js) detects recipes whose names start with "with " (case-insensitive) and merges them with the preceding recipe:
+The `mergeWithItems()` method (TitanSchoolsClient.js) detects recipes whose names start with "with " (case-insensitive) and merges them with the preceding recipe, wrapping them in parentheses to clearly distinguish them from side dishes:
 
 ```javascript
 ["Cheese Tortellini", "with Marinara Sauce", "Chicken Smackers"]
-→ ["Cheese Tortellini with Marinara Sauce", "Chicken Smackers"]
+→ ["Cheese Tortellini (with Marinara Sauce)", "Chicken Smackers"]
+
+["Pizza", "with Sauce", "with Extra Cheese"]
+→ ["Pizza (with Sauce and Extra Cheese)"]
 ```
 
-This fixes awkward API data like "Tortellini or with Marinara Sauce" and transforms it into natural language: "Tortellini with Marinara Sauce".
+This fixes awkward API data like "Tortellini or with Marinara Sauce" and transforms it into natural language: "Tortellini (with Marinara Sauce)". The parentheses make it clear that the "with" item is part of the entree, not a side dish (which are also prefixed with "with" in Stage 3).
+
+When multiple consecutive "with" items appear, they are combined into a single set of parentheses with the word "with" removed from subsequent items and joined with "and".
 
 ### Stage 2: Categorize Recipe Categories
 
@@ -117,7 +122,7 @@ The `formatMenu()` method applies different grammar rules based on category type
 
 ### Formatting Methods
 
-- `mergeWithItems(recipes[])` - Merges "with" items with preceding recipes
+- `mergeWithItems(recipes[])` - Merges "with" items with preceding recipes, wrapping them in parentheses. Multiple consecutive "with" items are combined into a single parenthetical.
 - `categorizeRecipeCategory(categoryName)` - Returns 'entrees', 'sides', or 'alternative'
 - `joinWithConjunction(items[], finalConjunction)` - Grammatically joins items with commas and conjunction
 - `formatMenu(recipeCategories[])` - Main orchestrator that applies all formatting rules

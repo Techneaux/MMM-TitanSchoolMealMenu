@@ -95,4 +95,84 @@ describe("TitanSchoolsClient parses API response correctly", () => {
     // Inspect the lunch menus
     expect(menusByDate[1].length).toBe(config.numberOfDaysToDisplay);
   });
+
+  describe("mergeWithItems() function", () => {
+    it('wraps a single "with" item in parentheses', () => {
+      const recipes = ['Pizza', 'with Marinara Sauce'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Marinara Sauce)']);
+    });
+
+    it('handles multiple consecutive "with" items by combining them', () => {
+      const recipes = ['Pizza', 'with Marinara Sauce', 'with Extra Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Marinara Sauce and Extra Cheese)']);
+    });
+
+    it('handles three consecutive "with" items', () => {
+      const recipes = ['Burger', 'with Lettuce', 'with Tomato', 'with Pickles'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Burger (with Lettuce and Tomato and Pickles)']);
+    });
+
+    it('handles case-insensitive "with" (With, WITH, etc.)', () => {
+      const recipes = ['Pizza', 'With Sauce', 'WITH Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (With Sauce and Cheese)']);
+    });
+
+    it('preserves items that do not start with "with"', () => {
+      const recipes = ['Pizza', 'Salad', 'Breadsticks'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza', 'Salad', 'Breadsticks']);
+    });
+
+    it('handles mixed "with" and regular items', () => {
+      const recipes = ['Pizza', 'with Sauce', 'Chicken', 'with BBQ Sauce'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Sauce)', 'Chicken (with BBQ Sauce)']);
+    });
+
+    it('handles "with" item at the start of array (no previous item)', () => {
+      const recipes = ['with Sauce', 'Pizza'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['with Sauce', 'Pizza']);
+    });
+
+    it('handles empty array', () => {
+      const recipes = [];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual([]);
+    });
+
+    it('handles single item (no "with")', () => {
+      const recipes = ['Pizza'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza']);
+    });
+
+    it('handles whitespace variations in "with" items', () => {
+      const recipes = ['Pizza', '  with   Sauce  '];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (  with   Sauce  )']);
+    });
+
+    it('does not merge items that contain "with" but do not start with it', () => {
+      const recipes = ['Pizza', 'Sandwich with Ham'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza', 'Sandwich with Ham']);
+    });
+
+    it('handles items with non-"with" parentheses correctly', () => {
+      const recipes = ['Burger (1/4 lb)', 'with Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Burger (1/4 lb) (with Cheese)']);
+    });
+
+    it('handles items with non-"with" parentheses followed by multiple "with" items', () => {
+      const recipes = ['Pizza (Large)', 'with Sauce', 'with Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (Large) (with Sauce and Cheese)']);
+    });
+  });
 });
