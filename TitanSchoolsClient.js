@@ -44,7 +44,6 @@ class TitanSchoolsClient {
 
     // Formatting options for menu display
     this.entreeJoiner = config.entreeJoiner ?? " or ";
-    this.sideJoiner = config.sideJoiner ?? ", ";
     this.showCategoryLabels = config.showCategoryLabels ?? false;
     this.useOxfordComma = config.useOxfordComma ?? true;
     this.alternativeLabel = config.alternativeLabel ?? ""; // Support {categoryName} placeholder
@@ -371,14 +370,7 @@ class TitanSchoolsClient {
     // Format sides
     if (categorizedGroups.sides.length > 0) {
       const allSides = categorizedGroups.sides.flatMap(g => g.recipes);
-      let sidesText;
-
-      if (allSides.length >= 3) {
-        // Use "and" for lists of 3+ sides
-        sidesText = this.joinWithConjunction(allSides, 'and');
-      } else {
-        sidesText = allSides.join(this.sideJoiner);
-      }
+      let sidesText = this.joinWithConjunction(allSides, 'and');
 
       if (this.showCategoryLabels) {
         sidesText = `Sides: ${sidesText}`;
@@ -393,7 +385,7 @@ class TitanSchoolsClient {
     // Format alternative options
     if (categorizedGroups.alternative.length > 0) {
       categorizedGroups.alternative.forEach((group) => {
-        const itemsText = group.recipes.join(this.sideJoiner);
+        const itemsText = this.joinWithConjunction(group.recipes, 'and');
 
         let alternativeText;
         if (this.alternativeLabel === "") {
