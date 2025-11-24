@@ -262,7 +262,11 @@ class TitanSchoolsClient {
   /**
    * Merges recipes that start with "with" into their preceding recipe
    * @param {Array} recipes - Array of recipe name strings
-   * @returns {Array} - Array of recipe names with "with" items merged
+   * @returns {Array} - Array of recipe names with "with" items merged in parentheses
+   *
+   * Examples:
+   *   ['Pizza', 'with Sauce'] → ['Pizza (with Sauce)']
+   *   ['Pizza', 'with Sauce', 'with Cheese'] → ['Pizza (with Sauce and Cheese)']
    */
   mergeWithItems(recipes) {
     const merged = [];
@@ -272,8 +276,19 @@ class TitanSchoolsClient {
       const isWithItem = recipe.toLowerCase().trim().startsWith('with ');
 
       if (isWithItem && merged.length > 0) {
-        // Attach this "with" item to the previous recipe
-        merged[merged.length - 1] = `${merged[merged.length - 1]} ${recipe}`;
+        const previousItem = merged[merged.length - 1];
+
+        // Check if previous item already has a "with" item in parentheses
+        if (previousItem.endsWith(')')) {
+          // Multiple consecutive "with" items - extend the existing parenthetical
+          // Remove the closing paren, add " and {item without 'with'}", then add paren back
+          const withoutParen = previousItem.slice(0, -1);
+          const itemWithoutWith = recipe.replace(/^with\s+/i, '');
+          merged[merged.length - 1] = `${withoutParen} and ${itemWithoutWith})`;
+        } else {
+          // First "with" item - wrap it in parentheses
+          merged[merged.length - 1] = `${previousItem} (${recipe})`;
+        }
       } else {
         // Regular recipe or first item
         merged.push(recipe);
