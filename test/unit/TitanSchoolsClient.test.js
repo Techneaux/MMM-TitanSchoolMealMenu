@@ -162,5 +162,17 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       const result = client.mergeWithItems(recipes);
       expect(result).toEqual(['Pizza', 'Sandwich with Ham']);
     });
+
+    it('handles items with non-"with" parentheses correctly', () => {
+      const recipes = ['Burger (1/4 lb)', 'with Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Burger (1/4 lb) (with Cheese)']);
+    });
+
+    it('handles items with non-"with" parentheses followed by multiple "with" items', () => {
+      const recipes = ['Pizza (Large)', 'with Sauce', 'with Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (Large) (with Sauce and Cheese)']);
+    });
   });
 });

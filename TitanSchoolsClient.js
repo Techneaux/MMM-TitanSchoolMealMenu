@@ -279,12 +279,16 @@ class TitanSchoolsClient {
         const previousItem = merged[merged.length - 1];
 
         // Check if previous item already has a "with" item in parentheses
-        if (previousItem.endsWith(')')) {
-          // Multiple consecutive "with" items - extend the existing parenthetical
-          // Remove the closing paren, add " and {item without 'with'}", then add paren back
-          const withoutParen = previousItem.slice(0, -1);
-          const itemWithoutWith = recipe.replace(/^with\s+/i, '');
-          merged[merged.length - 1] = `${withoutParen} and ${itemWithoutWith})`;
+        // Use specific regex to avoid false positives with items like "Burger (1/4 lb)"
+        const withParenRegex = /\(with [^)]+?\)$/i;
+        if (withParenRegex.test(previousItem)) {
+          // Multiple consecutive "with" items - extend the existing "with" parenthetical
+          // Replace the closing paren, add " and {item without 'with'}", then add paren back
+          const itemWithoutWith = recipe.trim().replace(/^with\s+/i, '');
+          merged[merged.length - 1] = previousItem.replace(
+            /\)$/,
+            ` and ${itemWithoutWith})`
+          );
         } else {
           // First "with" item - wrap it in parentheses
           merged[merged.length - 1] = `${previousItem} (${recipe})`;
