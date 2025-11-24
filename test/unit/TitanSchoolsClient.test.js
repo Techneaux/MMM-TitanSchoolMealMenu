@@ -177,7 +177,26 @@ describe("TitanSchoolsClient parses API response correctly", () => {
   });
 
   describe("formatMenu() function", () => {
-    it('adds "with sides of" prefix when entrees and sides are present', () => {
+    it('adds "with a side of" prefix when entrees and a single side are present', () => {
+      const recipeCategories = [
+        {
+          CategoryName: "Entrees",
+          Recipes: [
+            { RecipeName: "Chicken Tenders" },
+            { RecipeName: "Fish Sticks" }
+          ]
+        },
+        {
+          CategoryName: "Grain",
+          Recipes: [{ RecipeName: "Brown Rice" }]
+        }
+      ];
+
+      const result = client.formatMenu(recipeCategories);
+      expect(result).toBe("Chicken Tenders or Fish Sticks with a side of Brown Rice.");
+    });
+
+    it('adds "with sides of" prefix when entrees and multiple sides are present', () => {
       const recipeCategories = [
         {
           CategoryName: "Entrees",
