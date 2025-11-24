@@ -175,4 +175,63 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       expect(result).toEqual(['Pizza (Large) (with Sauce and Cheese)']);
     });
   });
+
+  describe("formatMenu() function", () => {
+    it('adds "with sides of" prefix when entrees and sides are present', () => {
+      const recipeCategories = [
+        {
+          CategoryName: "Entrees",
+          Recipes: [
+            { RecipeName: "Chicken Tenders" },
+            { RecipeName: "Fish Sticks" }
+          ]
+        },
+        {
+          CategoryName: "Grain",
+          Recipes: [{ RecipeName: "Brown Rice" }]
+        },
+        {
+          CategoryName: "Vegetable",
+          Recipes: [
+            { RecipeName: "Green Beans" },
+            { RecipeName: "Carrots" }
+          ]
+        }
+      ];
+
+      const result = client.formatMenu(recipeCategories);
+      expect(result).toBe("Chicken Tenders or Fish Sticks with sides of Brown Rice, Green Beans, and Carrots.");
+    });
+
+    it('does not add "with sides of" prefix when only sides are present', () => {
+      const recipeCategories = [
+        {
+          CategoryName: "Grain",
+          Recipes: [{ RecipeName: "Brown Rice" }]
+        },
+        {
+          CategoryName: "Fruit",
+          Recipes: [{ RecipeName: "Apple Slices" }]
+        }
+      ];
+
+      const result = client.formatMenu(recipeCategories);
+      expect(result).toBe("Brown Rice and Apple Slices.");
+    });
+
+    it('formats entrees without sides correctly', () => {
+      const recipeCategories = [
+        {
+          CategoryName: "Entrees",
+          Recipes: [
+            { RecipeName: "Pizza" },
+            { RecipeName: "Burger" }
+          ]
+        }
+      ];
+
+      const result = client.formatMenu(recipeCategories);
+      expect(result).toBe("Pizza or Burger.");
+    });
+  });
 });

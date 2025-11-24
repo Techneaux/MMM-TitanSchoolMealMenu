@@ -105,8 +105,8 @@ The `formatMenu()` method applies different grammar rules based on category type
 
 **Sides:**
 - Always joined with "and" conjunction using `joinWithConjunction()` with Oxford comma (if enabled)
-- Prefixed with "with " when there are entrees
-- Example: `"with Macaroni & Cheese, Green Beans, and Fresh Veggies"`
+- Prefixed with "with sides of " when there are entrees
+- Example: `"with sides of Macaroni & Cheese, Green Beans, and Fresh Veggies"`
 
 **Alternatives:**
 - Separated from main meal with a period
@@ -117,7 +117,7 @@ The `formatMenu()` method applies different grammar rules based on category type
 
 **Trailing Period:**
 - ALL menu descriptions get a trailing period
-- Without alternatives: `"Chicken Tenders with sides."`
+- Without alternatives: `"Chicken Tenders with sides of Green Beans."`
 - With alternatives: `"Main meal. Or alternative."`
 
 ### Formatting Methods

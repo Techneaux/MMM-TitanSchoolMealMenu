@@ -394,8 +394,8 @@ class TitanSchoolsClient {
       if (this.showCategoryLabels) {
         sidesText = `Sides: ${sidesText}`;
       } else if (categorizedGroups.entrees.length > 0) {
-        // Add "with" prefix if there are entrees
-        sidesText = `with ${sidesText}`;
+        // Add "with sides of" prefix if there are entrees
+        sidesText = `with sides of ${sidesText}`;
       }
 
       mainParts.push(sidesText);
