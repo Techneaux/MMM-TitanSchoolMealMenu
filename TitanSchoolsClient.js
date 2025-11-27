@@ -260,20 +260,26 @@ class TitanSchoolsClient {
   }
 
   /**
-   * Merges recipes that start with "with" into their preceding recipe
+   * Merges recipes that start with "with" or "w/" into their preceding recipe
    * @param {Array} recipes - Array of recipe name strings
    * @returns {Array} - Array of recipe names with "with" items merged in parentheses
    *
    * Examples:
    *   ['Pizza', 'with Sauce'] → ['Pizza (with Sauce)']
    *   ['Pizza', 'with Sauce', 'with Cheese'] → ['Pizza (with Sauce and Cheese)']
+   *   ['Pizza', 'w/ Sauce'] → ['Pizza (with Sauce)']
+   *   ['Pizza', 'w/Sauce'] → ['Pizza (with Sauce)']
    */
   mergeWithItems(recipes) {
     const merged = [];
 
     for (let i = 0; i < recipes.length; i++) {
       const recipe = recipes[i];
-      const isWithItem = recipe.toLowerCase().trim().startsWith('with ');
+      const trimmedLower = recipe.toLowerCase().trim();
+      // Match "with " prefix or "w/" prefix (with optional space after the slash)
+      const startsWithWith = trimmedLower.startsWith('with ');
+      const startsWithWSlash = trimmedLower.startsWith('w/');
+      const isWithItem = startsWithWith || startsWithWSlash;
 
       if (isWithItem && merged.length > 0) {
         const previousItem = merged[merged.length - 1];
@@ -283,15 +289,23 @@ class TitanSchoolsClient {
         const withParenRegex = /\(with [^)]+?\)$/i;
         if (withParenRegex.test(previousItem)) {
           // Multiple consecutive "with" items - extend the existing "with" parenthetical
-          // Replace the closing paren, add " and {item without 'with'}", then add paren back
-          const itemWithoutWith = recipe.trim().replace(/^with\s+/i, '');
+          // Replace the closing paren, add " and {item without 'with'/'w/'}", then add paren back
+          // Normalize both "with " and "w/ " (or "w/") to extract just the item name
+          const itemWithoutWith = recipe.trim().replace(/^(with\s+|w\/\s*)/i, '');
           merged[merged.length - 1] = previousItem.replace(
             /\)$/,
             ` and ${itemWithoutWith})`
           );
         } else {
           // First "with" item - wrap it in parentheses
-          merged[merged.length - 1] = `${previousItem} (${recipe})`;
+          // Normalize "w/" to "with" for consistent output, preserve "with " items as-is
+          let normalizedRecipe;
+          if (startsWithWSlash) {
+            normalizedRecipe = recipe.trim().replace(/^w\/\s*/i, 'with ');
+          } else {
+            normalizedRecipe = recipe;
+          }
+          merged[merged.length - 1] = `${previousItem} (${normalizedRecipe})`;
         }
       } else {
         // Regular recipe or first item

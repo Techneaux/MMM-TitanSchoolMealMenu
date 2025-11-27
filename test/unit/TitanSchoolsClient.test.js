@@ -174,6 +174,42 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       const result = client.mergeWithItems(recipes);
       expect(result).toEqual(['Pizza (Large) (with Sauce and Cheese)']);
     });
+
+    it('handles "w/" prefix with space', () => {
+      const recipes = ['Tortellini', 'w/ Marinara Sauce'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Tortellini (with Marinara Sauce)']);
+    });
+
+    it('handles "w/" prefix without space', () => {
+      const recipes = ['Tortellini', 'w/Marinara Sauce'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Tortellini (with Marinara Sauce)']);
+    });
+
+    it('handles multiple consecutive "w/" items', () => {
+      const recipes = ['Pizza', 'w/ Sauce', 'w/ Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Sauce and Cheese)']);
+    });
+
+    it('handles mixed "with" and "w/" items', () => {
+      const recipes = ['Pizza', 'with Sauce', 'w/ Extra Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Sauce and Extra Cheese)']);
+    });
+
+    it('handles "w/" item at the start of array (no previous item)', () => {
+      const recipes = ['w/ Sauce', 'Pizza'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['w/ Sauce', 'Pizza']);
+    });
+
+    it('handles case-insensitive "w/" (W/, etc.)', () => {
+      const recipes = ['Pizza', 'W/ Sauce', 'W/Cheese'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Sauce and Cheese)']);
+    });
   });
 
   describe("formatMenu() function", () => {
