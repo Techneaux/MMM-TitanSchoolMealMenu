@@ -260,7 +260,7 @@ class TitanSchoolsClient {
   }
 
   /**
-   * Merges recipes that start with "with" or "w/" into their preceding recipe
+   * Merges recipes that start with "with", "w/", or "over" into their preceding recipe
    * @param {Array} recipes - Array of recipe name strings
    * @returns {Array} - Array of recipe names with "with" items merged in parentheses
    *
@@ -269,6 +269,7 @@ class TitanSchoolsClient {
    *   ['Pizza', 'with Sauce', 'with Cheese'] → ['Pizza (with Sauce and Cheese)']
    *   ['Pizza', 'w/ Sauce'] → ['Pizza (with Sauce)']
    *   ['Pizza', 'w/Sauce'] → ['Pizza (with Sauce)']
+   *   ['Chicken', 'over Rice'] → ['Chicken (with Rice)']
    */
   mergeWithItems(recipes) {
     const merged = [];
@@ -276,10 +277,11 @@ class TitanSchoolsClient {
     for (let i = 0; i < recipes.length; i++) {
       const recipe = recipes[i];
       const trimmedLower = recipe.toLowerCase().trim();
-      // Match "with " prefix or "w/" prefix (with optional space after the slash)
+      // Match "with " prefix, "w/" prefix (with optional space), or "over " prefix
       const startsWithWith = trimmedLower.startsWith('with ');
       const startsWithWSlash = trimmedLower.startsWith('w/');
-      const isWithItem = startsWithWith || startsWithWSlash;
+      const startsWithOver = trimmedLower.startsWith('over ');
+      const isWithItem = startsWithWith || startsWithWSlash || startsWithOver;
 
       if (isWithItem && merged.length > 0) {
         const previousItem = merged[merged.length - 1];
@@ -289,19 +291,21 @@ class TitanSchoolsClient {
         const withParenRegex = /\(with [^)]+?\)$/i;
         if (withParenRegex.test(previousItem)) {
           // Multiple consecutive "with" items - extend the existing "with" parenthetical
-          // Replace the closing paren, add " and {item without 'with'/'w/'}", then add paren back
-          // Normalize both "with " and "w/ " (or "w/") to extract just the item name
-          const itemWithoutWith = recipe.trim().replace(/^(with\s+|w\/\s*)/i, '');
+          // Replace the closing paren, add " and {item without 'with'/'w/'/'over'}", then add paren back
+          // Normalize "with ", "w/ " (or "w/"), and "over " to extract just the item name
+          const itemWithoutWith = recipe.trim().replace(/^(with\s+|w\/\s*|over\s+)/i, '');
           merged[merged.length - 1] = previousItem.replace(
             /\)$/,
             ` and ${itemWithoutWith})`
           );
         } else {
           // First "with" item - wrap it in parentheses
-          // Normalize "w/" to "with" for consistent output, preserve "with " items as-is
+          // Normalize "w/" and "over" to "with" for consistent output, preserve "with " items as-is
           let normalizedRecipe;
           if (startsWithWSlash) {
             normalizedRecipe = recipe.trim().replace(/^w\/\s*/i, 'with ');
+          } else if (startsWithOver) {
+            normalizedRecipe = recipe.trim().replace(/^over\s+/i, 'with ');
           } else {
             normalizedRecipe = recipe;
           }

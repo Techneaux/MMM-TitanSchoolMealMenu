@@ -210,6 +210,42 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       const result = client.mergeWithItems(recipes);
       expect(result).toEqual(['Pizza (with Sauce and Cheese)']);
     });
+
+    it('handles "over" prefix and normalizes to "with"', () => {
+      const recipes = ['Chicken', 'over Rice'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Chicken (with Rice)']);
+    });
+
+    it('handles multiple consecutive "over" items', () => {
+      const recipes = ['Beef Stew', 'over Egg Noodles', 'over Mashed Potatoes'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Beef Stew (with Egg Noodles and Mashed Potatoes)']);
+    });
+
+    it('handles mixed "with", "w/", and "over" items', () => {
+      const recipes = ['Pizza', 'with Sauce', 'w/ Cheese', 'over Breadsticks'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Pizza (with Sauce and Cheese and Breadsticks)']);
+    });
+
+    it('handles case-insensitive "over" (Over, OVER)', () => {
+      const recipes = ['Chicken', 'Over Rice', 'OVER Vegetables'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Chicken (with Rice and Vegetables)']);
+    });
+
+    it('handles "over" item at the start of array (no previous item)', () => {
+      const recipes = ['over Rice', 'Chicken'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['over Rice', 'Chicken']);
+    });
+
+    it('does not match "over" without trailing space', () => {
+      const recipes = ['Chicken', 'overRice'];
+      const result = client.mergeWithItems(recipes);
+      expect(result).toEqual(['Chicken', 'overRice']);
+    });
   });
 
   describe("formatMenu() function", () => {
