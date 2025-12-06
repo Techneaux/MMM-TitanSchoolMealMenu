@@ -293,10 +293,10 @@ class TitanSchoolsClient {
           // Multiple consecutive "with" items - extend the existing "with" parenthetical
           // Replace the closing paren, add " and {item without 'with'/'w/'/'over'}", then add paren back
           // Normalize "with ", "w/ " (or "w/"), and "over " to extract just the item name
-          const itemWithoutWith = recipe.trim().replace(/^(with\s+|w\/\s*|over\s+)/i, '');
+          const itemWithoutPrefix = recipe.trim().replace(/^(with\s+|w\/\s*|over\s+)/i, '');
           merged[merged.length - 1] = previousItem.replace(
             /\)$/,
-            ` and ${itemWithoutWith})`
+            ` and ${itemWithoutPrefix})`
           );
         } else {
           // First "with" item - wrap it in parentheses
