@@ -105,7 +105,6 @@ Module.register("MMM-TitanSchoolMealMenu", {
 
     // Data from helper
     if (this.dataNotification && !this.dataError) {
-      console.log(this.dataNotification);
       const wrapperDataNotification = document.createElement("div");
 
       // Check if we have any menu data to display
@@ -196,10 +195,6 @@ Module.register("MMM-TitanSchoolMealMenu", {
 
   // socketNotificationReceived from helper
   socketNotificationReceived: function (notificationName, payload) {
-    console.log(
-      `TitanSchools module (${this.instanceName}) received notification: ${notificationName}`
-    );
-
     if (
       notificationName ===
       this.getNamespacedNotificationName("FETCH_DATA_SUCCESS")

@@ -5,7 +5,6 @@ module.exports = NodeHelper.create({
   // Subclass start method.
   start: function () {
     var self = this;
-    console.log("Starting node helper for: " + self.name);
 
     // There will be a separate API client for each instance of this module (in case we want to poll
     // multiple school menus)
@@ -16,9 +15,11 @@ module.exports = NodeHelper.create({
     var self = this;
 
     if (isObjectEmpty(self.titanSchoolsClients)) {
-      console.log(
-        `Skipping data fetch because there's no TitanSchools API clients configured`
-      );
+      if (this.config && this.config.debug) {
+        console.log(
+          `Skipping data fetch because there's no TitanSchools API clients configured`
+        );
+      }
       return;
     }
 
@@ -56,12 +57,10 @@ module.exports = NodeHelper.create({
   socketNotificationReceived: function (notificationName, payload) {
     var self = this;
 
-    console.log(
-      `TitanSchools node_helper received notification: ${notificationName}`
-    );
-
     if (notificationName === "TITANSCHOOLS_SET_CONFIG") {
-      console.log(payload);
+      if (payload.debug) {
+        console.log(payload);
+      }
       self.titanSchoolsClients[payload.instanceName] = new TitanSchoolsClient({
         buildingId: payload.buildingId,
         districtId: payload.districtId,
