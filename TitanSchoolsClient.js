@@ -507,11 +507,13 @@ class TitanSchoolsClient {
       upcomingMenuByDate = allUpcomingDays.slice(0, this.numberOfDaysToDisplay);
     }
 
-    console.log(
-      `School meal info from titanschools API: ${JSON.stringify(
-        upcomingMenuByDate
-      )}`
-    );
+    if (this.debug) {
+      console.log(
+        `School meal info from titanschools API: ${JSON.stringify(
+          upcomingMenuByDate
+        )}`
+      );
+    }
 
     return upcomingMenuByDate;
   }
