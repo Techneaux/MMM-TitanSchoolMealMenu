@@ -28,8 +28,8 @@
   padding-left: 1em;
 }
 
-/* "lines" layout: hierarchy by weight and brightness rather than by greying out,
-   so it stays readable on a photo background (MMM-Wallpaper etc.) */
+/* Hierarchy by weight and brightness rather than by greying out, so it stays readable on a
+   photo background (MMM-Wallpaper etc.). Applies to both the "lines" and "sentence" layouts. */
 .MMM-TitanSchoolMealMenu .meal-description {
   margin-block: 0 0.35em;
 }
@@ -40,14 +40,5 @@
 }
 
 .MMM-TitanSchoolMealMenu .meal-alternative {
-  font-weight: 400;
-}
-
-.MMM-TitanSchoolMealMenu .meal-sides {
   font-weight: 300;
-  font-size: 0.9em;
-}
-
-.MMM-TitanSchoolMealMenu .meal-sides-label {
-  font-weight: 400;
 }

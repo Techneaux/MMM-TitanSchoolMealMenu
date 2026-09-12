@@ -115,6 +115,14 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       );
     });
 
+    it("folds the day's shared sides into mainWithSides", () => {
+      const menu = lunchFor("9/14/2026");
+      expect(menu.mainWithSides).toBe("Mini Pancakes with Chicken Sausage Patty, Hashbrown Patties, Dragon Juice, and Assorted Fruit Choices");
+      expect(lunchFor("9/17/2026").mainWithSides).toBe(
+        "Mandarin Orange Chicken over Fluffy Brown Rice with Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie"
+      );
+    });
+
     it('attaches an "Over" category to the entree and keeps Dessert with the shared sides', () => {
       const menu = lunchFor("9/17/2026");
       expect(menu.main).toBe("Mandarin Orange Chicken over Fluffy Brown Rice");
@@ -189,6 +197,13 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       const menu = menuFor({});
       expect(menu.main).toBe("Build-Your-Own Burger with Fresh Burger Fixings, American Cheese Slice, and more");
       expect(menu.sides).toEqual(["Potato Wedges"]);
+    });
+
+    it('puts shared sides before "and more" in mainWithSides', () => {
+      expect(menuFor({}).mainWithSides).toBe(
+        "Build-Your-Own Burger with Fresh Burger Fixings, American Cheese Slice, Potato Wedges, and more"
+      );
+      expect(menuFor({ mealSidesLimit: 0 }).mainWithSides).toBe("Build-Your-Own Burger with Potato Wedges");
     });
 
     it("hides meal-specific sides when the limit is 0", () => {
