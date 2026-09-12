@@ -118,7 +118,7 @@ Builds the object below, then returns `null` unless `mealHasContent(menu)` (main
 
 ### Frontend rendering (MMM-TitanSchoolMealMenu.js)
 
-`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. Inside `.meal-recipes`, `layout: "lines"` emits `<div class="meal-main">`, `<div class="meal-alternative dimmed">or …</div>` per alternative (when `showAlternatives`), and `<div class="meal-sides dimmed">a · b · c</div>` (when `showSides`). `layout: "sentence"` emits `menu.text`. Text is set via `textContent`, not `innerHTML`.
+`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. Inside `.meal-recipes`, `layout: "lines"` emits `<div class="meal-main">`, `<div class="meal-alternative">or …</div>` per alternative (when `showAlternatives`), and `<div class="meal-sides"><span class="meal-sides-label">Sides: </span>a · b · c</div>` (when `showSides`; label from `sidesLabel`). No `dimmed` class: the mirror may have a photo wallpaper, so hierarchy is done with weight/brightness in the module CSS. `layout: "sentence"` emits `menu.text`. Text is set via `textContent`, not `innerHTML`.
 
 `node_helper.js` passes the whole module config to `TitanSchoolsClient`, so every formatting option in `defaults` reaches the client.
 
@@ -153,7 +153,7 @@ Optional but commonly customized:
 
 **Display options:**
 - `layout` (default: "lines") - "lines" (entree / "or alternative" / sides on separate lines) or "sentence" (legacy one-sentence form)
-- `showAlternatives` (default: true), `showSides` (default: true) - Toggle the alternative and shared-sides lines in the lines layout
+- `showAlternatives` (default: true), `showSides` (default: true), `sidesLabel` (default: "Sides:") - Alternative and shared-sides lines in the lines layout
 - `mealSidesLimit` (default: 2) - Meal-specific sides attached to an entree before "and more"; 0 hides them
 - `hideEverydaySides` (default: false) - Drop shared sides that appear on every fetched day
 - `entreeJoiner` (default: " or "), `useOxfordComma` (default: true), `showCategoryLabels` (default: false, sentence layout only)

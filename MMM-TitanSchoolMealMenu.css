@@ -28,16 +28,26 @@
   padding-left: 1em;
 }
 
-/* "lines" layout: entree first, then alternatives and shared sides de-emphasized */
+/* "lines" layout: hierarchy by weight and brightness rather than by greying out,
+   so it stays readable on a photo background (MMM-Wallpaper etc.) */
+.MMM-TitanSchoolMealMenu .meal-description {
+  margin-block: 0 0.35em;
+}
+
 .MMM-TitanSchoolMealMenu .meal-main {
   font-weight: 400;
+  color: var(--color-text-bright, #fff);
 }
 
 .MMM-TitanSchoolMealMenu .meal-alternative {
-  font-weight: 300;
+  font-weight: 400;
 }
 
 .MMM-TitanSchoolMealMenu .meal-sides {
   font-weight: 300;
-  font-size: 0.85em;
+  font-size: 0.9em;
+}
+
+.MMM-TitanSchoolMealMenu .meal-sides-label {
+  font-weight: 400;
 }

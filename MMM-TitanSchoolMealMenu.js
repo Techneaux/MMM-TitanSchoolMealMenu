@@ -13,6 +13,7 @@ Module.register("MMM-TitanSchoolMealMenu", {
     layout: "lines", // "lines": entree / alternatives / sides on separate lines. "sentence": one natural-language sentence.
     showAlternatives: true, // Show alternative meals (Choice 2, Grab & Go, Box Lunch)
     showSides: true, // Show the sides shared by every entree (fruit, vegetables, dessert)
+    sidesLabel: "Sides:", // Label in front of the shared sides line. "" for none.
     mealSidesLimit: 2, // Max sides attached to an entree (burger toppings, etc.) before "and more". 0 hides them.
     hideEverydaySides: false, // Hide shared sides that appear on every fetched day (e.g. "Assorted Fruit Choices")
     recipeCategoriesToInclude: [], // Empty = all categories (except recipeCategoriesToExclude)
@@ -185,8 +186,8 @@ Module.register("MMM-TitanSchoolMealMenu", {
   },
 
   /**
-   * "lines" layout: the main entree on its own line, each alternative meal on a dimmed "or ..." line,
-   * then the shared sides on a smaller dimmed line.
+   * "lines" layout: the main entree on its own line, each alternative meal on an "or ..." line,
+   * then the shared sides on a lighter, labelled line.
    */
   renderMealLines: function (container, menu) {
     const lines = [];
@@ -200,14 +201,18 @@ Module.register("MMM-TitanSchoolMealMenu", {
         // Only the very first line of a meal goes without an "or"
         const prefix = alternative.label || (lines.length > 0 ? "or" : "");
         lines.push({
-          className: "meal-alternative dimmed",
+          className: "meal-alternative",
           text: `${prefix} ${alternative.text}`.trim()
         });
       });
     }
 
     if (this.config.showSides && (menu.sides || []).length > 0) {
-      lines.push({ className: "meal-sides dimmed", text: menu.sides.join(" \u00b7 ") });
+      lines.push({
+        className: "meal-sides",
+        label: this.config.sidesLabel,
+        text: menu.sides.join(" \u00b7 ")
+      });
     }
 
     if (lines.length === 0) {
@@ -218,7 +223,13 @@ Module.register("MMM-TitanSchoolMealMenu", {
     lines.forEach((line) => {
       const lineElement = document.createElement("div");
       lineElement.className = line.className;
-      lineElement.textContent = line.text;
+      if (line.label) {
+        const labelElement = document.createElement("span");
+        labelElement.className = "meal-sides-label";
+        labelElement.textContent = `${line.label} `;
+        lineElement.appendChild(labelElement);
+      }
+      lineElement.appendChild(document.createTextNode(line.text));
       container.appendChild(lineElement);
     });
   },
