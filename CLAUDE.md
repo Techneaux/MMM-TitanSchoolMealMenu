@@ -108,6 +108,7 @@ Builds the object below, then returns `null` unless `mealHasContent(menu)` (main
   main: "Mandarin Orange Chicken over Fluffy Brown Rice",       // formatMealLine(parsed.main)
   alternatives: [{ label: "", text: "Yogurt Parfait with Granola Packet" }],  // label = alternativeLabel with {categoryName} → meal name minus cycle prefix ("2-4 Choice 2" → "Choice 2")
   sides: ["Steamed Broccoli", "Fresh Veggies", "Fortune Cookie"], // shared sides, flat
+  sidesText: "Steamed Broccoli, Fresh Veggies, and Fortune Cookie", // same, as one phrase for display
   text: "Mandarin Orange Chicken over Fluffy Brown Rice with sides of ... . Or Yogurt Parfait with Granola Packet."  // formatSentence(parsed)
 }
 ```
@@ -118,7 +119,7 @@ Builds the object below, then returns `null` unless `mealHasContent(menu)` (main
 
 ### Frontend rendering (MMM-TitanSchoolMealMenu.js)
 
-`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. `renderMealParts()` fills `.meal-recipes` with a `.meal-main` part, one `.meal-alternative` part per alternative ("or …"; `alternativeLabel` replaces the "or"), and a `.meal-sides` part (`<span class="meal-sides-label">Sides: </span>a · b · c`, label from `sidesLabel`) when `showSides`. `layout: "lines"` emits them as `<div>`s; `layout: "sentence"` emits `<span>`s each ending in a period, flowing as one paragraph (the user's preferred form: everything for a day in one wrapped block, sides last). No `dimmed` class — the mirror has a photo wallpaper, so hierarchy is weight/brightness in module CSS. Text is set via `textContent`, not `innerHTML`.
+`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. `renderMealParts()` fills `.meal-recipes` with a `.meal-main` part, one `.meal-alternative` part per alternative ("or …"; `alternativeLabel` replaces the "or"), and a `.meal-sides` part (`<span class="meal-sides-label">Sides: </span>` + `sidesText`, i.e. "a, b, and c" via `joinWithConjunction`; label from `sidesLabel`) when `showSides`. `layout: "lines"` emits them as `<div>`s; `layout: "sentence"` emits `<span>`s each ending in a period, flowing as one paragraph (the user's preferred form: everything for a day in one wrapped block, sides last). No `dimmed` class — the mirror has a photo wallpaper, so hierarchy is weight/brightness in module CSS. Text is set via `textContent`, not `innerHTML`.
 
 `node_helper.js` passes the whole module config to `TitanSchoolsClient`, so every formatting option in `defaults` reaches the client.
 
