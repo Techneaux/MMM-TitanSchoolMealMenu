@@ -14,7 +14,9 @@ Module.register("MMM-TitanSchoolMealMenu", {
     showAlternatives: true, // Show alternative meals (Choice 2, Grab & Go, Box Lunch)
     showSides: true, // Show the day's sides (fruit, vegetables, dessert) after the main meal
     sidesLabel: "Sides:", // Label in front of the sides. "" for none.
-    partSeparator: " | ", // "sentence" layout: separator between the main meal, the sides, and each alternative
+    sidesWrap: ["(", ")"], // Characters around the sides part, e.g. "(Sides: Corn and Apple)". [] for none.
+    alternativeWrap: ["[", "]"], // Characters around each alternative, e.g. "[or PBJ Uncrustable]". [] for none.
+    partSeparator: " ", // "sentence" layout: separator between the main meal, the sides, and each alternative
     mealSidesLimit: 2, // Max sides attached to an entree (burger toppings, etc.) before "and more". 0 hides them.
     hideEverydaySides: false, // Hide shared sides that appear on every fetched day (e.g. "Assorted Fruit Choices")
     recipeCategoriesToInclude: [], // Empty = all categories (except recipeCategoriesToExclude)
@@ -186,8 +188,8 @@ Module.register("MMM-TitanSchoolMealMenu", {
 
   /**
    * Renders the main meal, then the day's sides as "Sides: a, b, and c", then each alternative meal as "or ...".
-   * Each part is { className, label, text }; the label ("Sides:", "or") is rendered in its own span so it can be
-   * styled as a marker.
+   * Each part is { className, label, text, wrap }; the label ("Sides:", "or") is rendered in its own span so it can be
+   * styled, and wrap ([open, close], e.g. ["(", ")"]) marks the part off from its neighbours.
    *
    * @param {boolean} inline - false: one block line per part ("lines" layout).
    *                           true: parts flow as one paragraph, separated by config.partSeparator ("sentence" layout).
@@ -196,19 +198,29 @@ Module.register("MMM-TitanSchoolMealMenu", {
     const parts = [];
 
     if (menu.main) {
-      parts.push({ className: "meal-main", label: "", text: menu.main });
+      parts.push({ className: "meal-main", label: "", text: menu.main, wrap: [] });
     }
 
     // Sides belong to the main meal, so they come right after it and before the "or ..." alternatives
     if (this.config.showSides && (menu.sides || []).length > 0) {
-      parts.push({ className: "meal-sides", label: this.config.sidesLabel, text: menu.sidesText || menu.sides.join(", ") });
+      parts.push({
+        className: "meal-sides",
+        label: this.config.sidesLabel,
+        text: menu.sidesText || menu.sides.join(", "),
+        wrap: this.config.sidesWrap || []
+      });
     }
 
     if (this.config.showAlternatives) {
       (menu.alternatives || []).forEach((alternative) => {
         // Only the very first part of a meal goes without an "or"
         const joiner = parts.length > 0 ? (inline ? "Or" : "or") : "";
-        parts.push({ className: "meal-alternative", label: alternative.label || joiner, text: alternative.text });
+        parts.push({
+          className: "meal-alternative",
+          label: alternative.label || joiner,
+          text: alternative.text,
+          wrap: this.config.alternativeWrap || []
+        });
       });
     }
 
@@ -227,13 +239,17 @@ Module.register("MMM-TitanSchoolMealMenu", {
 
       const element = document.createElement(inline ? "span" : "div");
       element.className = part.className;
+      const [open = "", close = ""] = part.wrap;
+      if (open) {
+        element.appendChild(document.createTextNode(open));
+      }
       if (part.label) {
         const labelElement = document.createElement("span");
         labelElement.className = "meal-part-label";
         labelElement.textContent = `${part.label} `;
         element.appendChild(labelElement);
       }
-      element.appendChild(document.createTextNode(part.text));
+      element.appendChild(document.createTextNode(part.text + close));
       container.appendChild(element);
     });
   },
