@@ -10,9 +10,10 @@ Module.register("MMM-TitanSchoolMealMenu", {
     weekStartsOnMonday: false,
     hideEmptyDays: false,
     hideEmptyMeals: false,
-    layout: "lines", // "lines": main meal and each alternative on their own line. "sentence": one flowing paragraph per meal.
+    layout: "lines", // "lines": main meal, each alternative, and the sides on their own lines. "sentence": the same parts as one flowing paragraph.
     showAlternatives: true, // Show alternative meals (Choice 2, Grab & Go, Box Lunch)
-    showSides: true, // Fold the day's sides (fruit, vegetables, dessert) into the main meal
+    showSides: true, // Show the day's sides (fruit, vegetables, dessert) after the meals
+    sidesLabel: "Sides:", // Label in front of the sides. "" for none.
     mealSidesLimit: 2, // Max sides attached to an entree (burger toppings, etc.) before "and more". 0 hides them.
     hideEverydaySides: false, // Hide shared sides that appear on every fetched day (e.g. "Assorted Fruit Choices")
     recipeCategoriesToInclude: [], // Empty = all categories (except recipeCategoriesToExclude)
@@ -183,7 +184,7 @@ Module.register("MMM-TitanSchoolMealMenu", {
   },
 
   /**
-   * Renders the main meal (with the day's sides folded in) followed by each alternative meal as "or ...".
+   * Renders the main meal, each alternative meal as "or ...", then the day's sides as "Sides: a · b · c".
    *
    * @param {boolean} inline - false: one block line per part ("lines" layout).
    *                           true: parts flow as one paragraph, each a sentence ("sentence" layout).
@@ -191,9 +192,8 @@ Module.register("MMM-TitanSchoolMealMenu", {
   renderMealParts: function (container, menu, inline) {
     const parts = [];
 
-    const mainText = this.config.showSides ? menu.mainWithSides || menu.main : menu.main;
-    if (mainText) {
-      parts.push({ className: "meal-main", text: mainText });
+    if (menu.main) {
+      parts.push({ className: "meal-main", text: menu.main });
     }
 
     if (this.config.showAlternatives) {
@@ -205,6 +205,10 @@ Module.register("MMM-TitanSchoolMealMenu", {
       });
     }
 
+    if (this.config.showSides && (menu.sides || []).length > 0) {
+      parts.push({ className: "meal-sides", label: this.config.sidesLabel, text: menu.sides.join(" \u00b7 ") });
+    }
+
     if (parts.length === 0) {
       container.textContent = "none";
       return;
@@ -213,7 +217,13 @@ Module.register("MMM-TitanSchoolMealMenu", {
     parts.forEach((part, index) => {
       const element = document.createElement(inline ? "span" : "div");
       element.className = part.className;
-      element.textContent = inline ? `${part.text}.` : part.text;
+      if (part.label) {
+        const labelElement = document.createElement("span");
+        labelElement.className = "meal-sides-label";
+        labelElement.textContent = `${part.label} `;
+        element.appendChild(labelElement);
+      }
+      element.appendChild(document.createTextNode(inline ? `${part.text}.` : part.text));
       if (inline && index > 0) {
         container.appendChild(document.createTextNode(" "));
       }
