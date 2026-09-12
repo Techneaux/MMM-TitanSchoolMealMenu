@@ -41,13 +41,14 @@
   color: var(--color-text-bright, #fff);
 }
 
-/* The short labels ("Sides:", "Or") are the glance markers: one weight up from the text */
+/* The labels ("Sides:", "Or") inherit the text weight; the sidesWrap / alternativeWrap brackets are the glance
+   markers. Override here (e.g. font-weight: 400) to make the labels stand out instead. */
 .MMM-TitanSchoolMealMenu .meal-part-label {
-  font-weight: 400;
+  font-weight: inherit;
 }
 
 /* Separator between parts in the "sentence" layout. The configured partSeparator string carries its own
-   spacing (default " | "), so it is rendered verbatim rather than padded here. */
+   spacing (default " "), so it is rendered verbatim rather than padded here. */
 .MMM-TitanSchoolMealMenu .meal-part-separator {
   white-space: pre;
 }
