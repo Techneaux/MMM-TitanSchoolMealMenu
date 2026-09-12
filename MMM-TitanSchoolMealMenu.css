@@ -28,25 +28,15 @@
   padding-left: 1em;
 }
 
-/* Hierarchy by weight and brightness rather than by greying out, so it stays readable on a
-   photo background (MMM-Wallpaper etc.). Applies to both the "lines" and "sentence" layouts. */
+/* All parts of a meal share one bright, normal-weight style: lighter weights and greys were unreadable
+   on a photo wallpaper. The per-part classes are kept so custom.css can re-differentiate them. */
 .MMM-TitanSchoolMealMenu .meal-description {
   margin-block: 0 0.35em;
 }
 
-.MMM-TitanSchoolMealMenu .meal-main {
+.MMM-TitanSchoolMealMenu .meal-main,
+.MMM-TitanSchoolMealMenu .meal-alternative,
+.MMM-TitanSchoolMealMenu .meal-sides {
   font-weight: 400;
   color: var(--color-text-bright, #fff);
-}
-
-.MMM-TitanSchoolMealMenu .meal-alternative {
-  font-weight: 300;
-}
-
-.MMM-TitanSchoolMealMenu .meal-sides {
-  font-weight: 300;
-}
-
-.MMM-TitanSchoolMealMenu .meal-sides-label {
-  font-weight: 400;
 }
