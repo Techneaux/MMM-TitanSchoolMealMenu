@@ -184,7 +184,7 @@ Module.register("MMM-TitanSchoolMealMenu", {
   },
 
   /**
-   * Renders the main meal, each alternative meal as "or ...", then the day's sides as "Sides: a · b · c".
+   * Renders the main meal, each alternative meal as "or ...", then the day's sides as "Sides: a, b, and c".
    *
    * @param {boolean} inline - false: one block line per part ("lines" layout).
    *                           true: parts flow as one paragraph, each a sentence ("sentence" layout).
@@ -206,7 +206,8 @@ Module.register("MMM-TitanSchoolMealMenu", {
     }
 
     if (this.config.showSides && (menu.sides || []).length > 0) {
-      parts.push({ className: "meal-sides", label: this.config.sidesLabel, text: menu.sides.join(" \u00b7 ") });
+      // "A, B, and C" rather than dot-separated: thin separators are hard to see on a photo background
+      parts.push({ className: "meal-sides", label: this.config.sidesLabel, text: menu.sidesText || menu.sides.join(", ") });
     }
 
     if (parts.length === 0) {

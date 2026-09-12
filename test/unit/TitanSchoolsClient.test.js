@@ -110,6 +110,7 @@ describe("TitanSchoolsClient parses API response correctly", () => {
         { label: "", text: "PBJ Uncrustable Sandwich with Baked Chips or Crackers" }
       ]);
       expect(menu.sides).toEqual(["Hashbrown Patties", "Dragon Juice", "Assorted Fruit Choices"]);
+      expect(menu.sidesText).toBe("Hashbrown Patties, Dragon Juice, and Assorted Fruit Choices");
       expect(menu.text).toBe(
         "Mini Pancakes with sides of Chicken Sausage Patty, Hashbrown Patties, Dragon Juice, and Assorted Fruit Choices. Or PBJ Uncrustable Sandwich with Baked Chips or Crackers."
       );

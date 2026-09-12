@@ -104,12 +104,14 @@ class TitanSchoolsClient {
    *       "main": "Banana Muffin or Maple Waffle Snaps",
    *       "alternatives": [],
    *       "sides": ["Breakfast Protein Item", "Assorted Fruit Choices"],
+   *       "sidesText": "Breakfast Protein Item and Assorted Fruit Choices",
    *       "text": "Banana Muffin or Maple Waffle Snaps with sides of Breakfast Protein Item and Assorted Fruit Choices."
    *     },
    *     "lunch": {
    *       "main": "Mandarin Orange Chicken over Fluffy Brown Rice",
    *       "alternatives": [{ "label": "", "text": "Yogurt Parfait with Granola Packet" }],
    *       "sides": ["Steamed Broccoli", "Fresh Veggies", "Assorted Fruit Choices", "Fortune Cookie"],
+   *       "sidesText": "Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie",
    *       "text": "Mandarin Orange Chicken over Fluffy Brown Rice with sides of Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie. Or Yogurt Parfait with Granola Packet."
    *     }
    *   }
@@ -632,6 +634,8 @@ class TitanSchoolsClient {
       sides: parsed.sharedSides.flatMap((group) => group.recipes),
       text: this.formatSentence(parsed),
     };
+    // The sides as one readable phrase ("Corn, Apple, and Milk") for the frontend to display
+    menu.sidesText = this.joinWithConjunction(menu.sides, 'and');
 
     return this.mealHasContent(menu) ? menu : null;
   }
