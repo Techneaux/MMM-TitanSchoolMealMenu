@@ -186,6 +186,8 @@ This fork is the one that runs on the family's MagicMirror. Every change, howeve
 
 ### The loop
 
+This repo's default branch is `main`. Other Techneaux modules differ (`master` on MMM-OpenWeatherForecast and MMM-SugarValue), so when working across modules check first: `gh repo view Techneaux/<module> --json defaultBranchRef --jq .defaultBranchRef.name`.
+
 1. **Branch** from up-to-date `main`: `git checkout -b feature/<slug>` (or `fix/`, `docs/`).
 2. **Verify against live data before changing formatting.** The district edits its menus by hand and the shape drifts; don't reason from the mocks alone. Fetch a week for both configured schools (buildingIds are in the Pi's `config.js`; districtId is shared) and print `MenuMealName` / `CategoryName` / `RecipeName`, then run the response through `new TitanSchoolsClient({...}).extractMenusByDate(json)` and eyeball `main` / `alternatives` / `sides` / `text` per day. The API returns 403 without a browser `User-Agent`. When the shape changes, trim a real capture (strip `Nutrients`) into `test/unit/mocks/` and test against it.
 3. **Change + test**: `npx jest` must be green. Frontend changes have no unit tests — sanity-load the module with `new Function("Module", src)({ register: (n, o) => ... })` and read the DOM code carefully; the real check is the mirror.
@@ -199,7 +201,7 @@ This fork is the one that runs on the family's MagicMirror. Every change, howeve
      -F prId="$PR" -F botIds=BOT_kgDOCnlnWA
    ```
 
-   `BOT_kgDOCnlnWA` is `copilot-pull-request-reviewer[bot]`. The review lands in a few minutes; read it with `gh api /repos/Techneaux/MMM-TitanSchoolMealMenu/pulls/<n>/reviews` and `.../comments`. Re-run the same mutation to re-review after pushing fixes. Do not use Claude Code's `/code-review` skill on this repo.
+   `BOT_kgDOCnlnWA` is `copilot-pull-request-reviewer[bot]` (global, not per-repo; re-derive with `gh api '/users/copilot-pull-request-reviewer[bot]' --jq .node_id`). Don't confuse it with `copilot-swe-agent[bot]` (`BOT_kgDOC9w8XQ`, the coding agent — the only Copilot bot listed in `suggestedActors`). Passing a single `-F botIds=…` is fine even though the variable is `[ID!]`; GraphQL coerces it — ignore Copilot if it says otherwise. `copilot_work_started` appears in the PR timeline immediately and the review lands in 2–5 minutes; read it with `gh api /repos/Techneaux/MMM-TitanSchoolMealMenu/pulls/<n>/reviews --jq '.[] | "\(.user.login) \(.state)"'` (`.[-1].body` for the summary) and `.../pulls/<n>/comments --jq '.[] | "\(.path):\(.line)\n\(.body)"'`. Re-run the same mutation to re-review after pushing fixes. It reviews at "Lite" effort and leans to style nits but does catch real bugs — fix what's real, ignore the rest, don't argue in the thread. To stop requesting by hand, add a branch ruleset (Settings → Rulesets → **Automatically request Copilot code review**). Do not use Claude Code's `/code-review` skill on this repo.
 7. **Merge**: `gh pr merge <n> --repo Techneaux/MMM-TitanSchoolMealMenu --squash --delete-branch`, then `git checkout main && git pull`.
 8. **Deploy** (see below) and **look at the mirror** — the user judges legibility on the actual wall-mounted screen with a photo wallpaper, which no local render reproduces. Expect a round or two of "too dim / too bold / too much space" follow-ups; each one goes through steps 1–8 again, small.
 
@@ -216,6 +218,8 @@ pm2 restart MagicMirror
 pm2 logs MagicMirror --lines 60 --nostream | grep -iE "titan|TypeError|check_config"
 ```
 
+Only run `npm install` inside the *module* directory. `~/MagicMirror` itself carries a hand-applied node-ical patch that any `npm install` there wipes; MM upgrades, that patch, and mmpm (a Python venv, not npm) are mirror-level procedures documented in the private runbook (§5a–5c), not here. MM is 2.37 as of Sept 2026.
+
 `pm2 restart` reloads the Electron front end too, so a stale-JS "[object Object]" render is not a concern. Pre-existing, unrelated log noise: `[calendar] fetch failed` (Google Calendar timeouts) and `[updatenotification] Failed to retrieve repo info for MMM-TitanSchoolMealMenu` (its `git fetch --dry-run`); ignore both.
 
 Headless-browser screenshots of `http://<pi>:8080` hang (MagicMirror keeps sockets open) and `.local` names don't resolve inside the sandboxed browser — don't burn time on it; ask the user for a phone photo instead. `curl http://<pi>:8080/modules/MMM-TitanSchoolMealMenu/MMM-TitanSchoolMealMenu.js | grep <newSymbol>` is enough to confirm the served build.
@@ -226,8 +230,8 @@ Headless-browser screenshots of `http://<pi>:8080` hang (MagicMirror keeps socke
 
 Always: `cp config.js config.js.bak-$(date +%Y%m%d-%H%M%S)` first, edit with `sed` or a heredoc, then validate with `node -e 'require("./config.js")'` (MagicMirror also runs `check_config` on start — look for "doesn't contain syntax errors" in the pm2 log) before `pm2 restart`. Prefer changing module defaults over adding config keys when the change is what every user would want; prefer config keys for family taste (layout, hideEverydaySides).
 
-The Pi's `custom.css` hides `.meal-title` and `.breakfast-description` for this module and sets `max-width: 450px` / `li { font-size: 16px }` — keep those CSS hooks stable, and remember lines wrap at 450px when judging length.
+The Pi's `~/MagicMirror/config/custom.css` (MM 2.37 moved it out of `css/`) hides `.meal-title` and `.breakfast-description` for this module and sets `max-width: 450px` / `li { font-size: 16px }` — keep those CSS hooks stable, and remember lines wrap at 450px when judging length. Back both files up (runbook §7 "Take a new backup") after changing either.
 
 ### Backups and the private runbook
 
-The user keeps a private MagicMirror docs root on their Mac at `~/data/docs/personal/magicmirror/`: `README.md` is the full runbook (host details, cron schedule, this workflow, how to take a new config backup, rebuild steps) and `backups/<YYYY-MM-DD>/` holds config-only snapshots of the Pi (config.js, custom.css, pm2 dump, crontab, module list). The newest snapshot contains real secrets — never copy it into this repo or anywhere synced. There is no SD-card image. When the workflow in this section changes, update the runbook too.
+The user keeps a private MagicMirror docs root on their Mac at `~/data/docs/personal/magicmirror/`: `README.md` is the full runbook (host details, cron schedule, this workflow, requesting Copilot reviews, MM/mmpm upgrades, the node-ical patch, how to take a new config backup, rebuild steps), `backups/<YYYY-MM-DD>/` holds config-only snapshots of the Pi (config.js, custom.css, mm.sh, pm2 dump, crontab, module list, patches), and `patches/` mirrors `~/MagicMirror-patches/` on the Pi. The newest snapshot contains real secrets — never copy it into this repo or anywhere synced. There is no SD-card image. When the workflow in this section changes, update the runbook too.
