@@ -40,3 +40,14 @@
   font-weight: 300;
   color: var(--color-text-bright, #fff);
 }
+
+/* The short labels ("Sides:", "Or") are the glance markers: one weight up from the text */
+.MMM-TitanSchoolMealMenu .meal-part-label {
+  font-weight: 400;
+}
+
+/* Separator between parts in the "sentence" layout ("|" by default) */
+.MMM-TitanSchoolMealMenu .meal-part-separator {
+  padding: 0 0.35em;
+  white-space: pre;
+}
