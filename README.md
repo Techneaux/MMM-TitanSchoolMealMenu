@@ -43,15 +43,9 @@ Add this to your MagicMirror² `config.js`:
         districtId: '93f76ff0-2eb7-eb11-a2c4-e816644282bd',
         updateIntervalMs: 3600000, // Optional: Milliseconds between updates; Default: 3600000 (1 hour)
         numberOfDaysToDisplay: 3, // Optional: 0 - 5; Default: 3
-        recipeCategoriesToInclude: [
-            "Entrees",
-            "Grain"
-            // , "Fruit"
-            // , "Vegetable"
-            // , "Milk"
-            // , "Condiment"
-            // , "Extra"
-        ],
+        layout: "lines", // Optional: "lines" or "sentence"; Default: "lines"
+        recipeCategoriesToExclude: ["Milk"], // Optional: categories to hide; Default: ["Milk"]
+        hideEverydaySides: false, // Optional: hide sides that appear every day (e.g. "Assorted Fruit Choices"); Default: false
         debug: false // Optional: boolean; Default: false; Setting this to true will output verbose logs
     },
 },
@@ -100,12 +94,37 @@ These are the possible options:
 | `weekStartsOnMonday`            | <p>Show Monday as the first day of the week. Set to `true` to show Monday as the first day of the week.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
 | `hideEmptyDays`                 | <p>Hide days without any meals.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`<br>**Note:** When `bufferDays` > 0, empty days are already filtered out at the data level. This option is primarily useful when `bufferDays` is set to 0.</p>|
 | `hideEmptyMeals`                | <p>Hide meals that are empty.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
-| `recipeCategoriesToInclude`     | <p>An array of recipe categories to display.</p><p>**Type:** `array`<br>**Example:** `[ "Entrees", "Grain", "Fruit", "Vegetable" ]`<br>**Default value:** `[ "Entrees", "Grain" ]`<br>**Possible values:** Any valid category in the API as an array. (See example)</p><p>**Note:** Your district might not use the categories in this module. You will need to find the categories by visting the website.</p><p>**Note 2:** If this is blank (`[]`), all categories will be selected.</p>|
+| `layout`                        | <p>How each meal is displayed.</p><p>**Type:** `string`<br>**Default value:** `"lines"`<br>**Possible values:** `"lines"` shows the main entree on its own line, each alternative meal on a dimmed "or ..." line, and the shared sides on a smaller dimmed line. `"sentence"` shows everything as one natural-language sentence (the pre-0.6 look).</p>|
+| `showAlternatives`              | <p>Show alternative meals (Choice 2, Grab & Go, Box Lunch) in the `lines` layout.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
+| `showSides`                     | <p>Show the sides shared by every entree (fruit, vegetables, dessert) in the `lines` layout.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
+| `mealSidesLimit`                | <p>How many meal-specific sides (burger toppings, taco fixings, ...) to attach to an entree in the `lines` layout before saying "and more". Set to `0` to hide them.</p><p>**Type:** `integer`<br>**Default value:** `2`<br>**Example:** `"Build-Your-Own Burger with Fresh Burger Fixings, American Cheese Slice, and more"`</p>|
+| `hideEverydaySides`             | <p>Hide shared sides that show up on every fetched day (e.g. "Assorted Fruit Choices", "Fresh Veggies"), leaving only the sides that change from day to day.</p><p>**Type:** `boolean`<br>**Default value:** `false`</p>|
+| `recipeCategoriesToInclude`     | <p>An array of recipe categories to display. Leave empty to display all categories.</p><p>**Type:** `array`<br>**Example:** `[ "Entrees", "Grain", "Fruit", "Vegetable" ]`<br>**Default value:** `[]` (all categories)</p><p>**Note:** Matching is case-insensitive, and the "With"/"Over" categories that modify an entree are always kept.</p><p>**Note 2:** Your district might not use the categories in this module. You will need to find the categories by visiting the website.</p>|
+| `recipeCategoriesToExclude`     | <p>An array of recipe categories to hide.</p><p>**Type:** `array`<br>**Example:** `[ "Milk", "Condiment" ]`<br>**Default value:** `[ "Milk" ]`</p>|
 | `entreeJoiner`                  | <p>Text used to join multiple entree items.</p><p>**Type:** `string`<br>**Example:** `", "`<br>**Default value:** `" or "`</p>|
 | `showCategoryLabels`            | <p>Display category labels (e.g., "Entrees:", "Sides:") before menu items.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`</p>|
 | `useOxfordComma`                | <p>Use Oxford comma before final "and" in lists of 3+ items.</p><p>**Type:** `boolean`<br>**Default value:** `true`<br>**Possible values:** `true` and `false`</p>|
-| `alternativeLabel`              | <p>Label shown before alternative meal options (like "Box Lunch" or "Choice 2"). Supports `{categoryName}` placeholder.</p><p>**Type:** `string`<br>**Example:** `"Or {categoryName}:"` displays full category name<br>**Example 2:** `"Alternative:"` uses custom text<br>**Default value:** `""` (empty - shows "Or {items}" without category label)</p>|
+| `alternativeLabel`              | <p>Label shown before alternative meal options (like "Box Lunch" or "Choice 2"). Supports a `{categoryName}` placeholder, which is filled with the alternative meal's name (e.g. "Choice 2", "Grab & Go").</p><p>**Type:** `string`<br>**Example:** `"Or {categoryName}:"` displays the meal name<br>**Example 2:** `"Alternative:"` uses custom text<br>**Default value:** `""` (empty - shows "Or {items}" without category label)</p>|
 | `debug`                         | <p>Setting this to `true` will output verbose logs.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
+
+---
+
+## How menus are displayed
+
+The LinqConnect API describes each day as a set of *meals*, each with several *recipe categories*. The module recognizes three kinds of meals by name and lays them out like this (`layout: "lines"`):
+
+```
+Monday
+  Mandarin Orange Chicken over Fluffy Brown Rice                  ← main meal ("2-4 Elementary")
+  or Yogurt Parfait with Granola Packet                           ← alternative meal ("2-4 Choice 2", "Grab & Go", "Box Lunch")
+  Steamed Broccoli · Fresh Veggies · Fortune Cookie               ← shared sides ("Sides for All Entrees")
+```
+
+Within a meal, `Entrees` are joined with `entreeJoiner`, `Over`/`With` categories are attached to the entree ("over Fluffy Brown Rice", "with Granola Packet"), and a `Sides` category is attached with up to `mealSidesLimit` items. Recipe names that themselves start with "with", "w/" or "over" are folded into the preceding item ("Mixed Greens Salad (with Dressing)"). Leading asterisks and trailing "-NEW!!" markers are removed.
+
+Older API responses with a single unnamed meal per day are still supported: its entrees become the main meal and the remaining categories become the shared sides.
+
+`layout: "sentence"` renders the same information as one sentence, e.g. `Mandarin Orange Chicken over Fluffy Brown Rice with sides of Steamed Broccoli, Fresh Veggies, and Fortune Cookie. Or Yogurt Parfait with Granola Packet.`
 
 ---
 

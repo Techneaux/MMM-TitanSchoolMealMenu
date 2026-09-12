@@ -10,15 +10,17 @@ Module.register("MMM-TitanSchoolMealMenu", {
     weekStartsOnMonday: false,
     hideEmptyDays: false,
     hideEmptyMeals: false,
-    recipeCategoriesToInclude: [
-      "Entrees",
-      "Grain"
-      //   , "Fruit"
-      //   , "Vegetable"
-      //   , "Milk"
-      //   , "Condiment"
-      //   , "Extra"
-    ],
+    layout: "lines", // "lines": entree / alternatives / sides on separate lines. "sentence": one natural-language sentence.
+    showAlternatives: true, // Show alternative meals (Choice 2, Grab & Go, Box Lunch)
+    showSides: true, // Show the sides shared by every entree (fruit, vegetables, dessert)
+    mealSidesLimit: 2, // Max sides attached to an entree (burger toppings, etc.) before "and more". 0 hides them.
+    hideEverydaySides: false, // Hide shared sides that appear on every fetched day (e.g. "Assorted Fruit Choices")
+    recipeCategoriesToInclude: [], // Empty = all categories (except recipeCategoriesToExclude)
+    recipeCategoriesToExclude: ["Milk"],
+    entreeJoiner: " or ",
+    showCategoryLabels: false,
+    useOxfordComma: true,
+    alternativeLabel: "",
     debug: false
   },
 
@@ -134,40 +136,12 @@ Module.register("MMM-TitanSchoolMealMenu", {
 
         // Breakfast.
         if (dayMenu.breakfast || !this.config.hideEmptyMeals) {
-          const breakfastMenuList = document.createElement("ul");
-          const breakfastMenuItems = document.createElement("li");
-          const breakfastMenuTitle = document.createElement("span");
-          const breakfastMenuRecipes = document.createElement("span");
-
-          breakfastMenuTitle.innerHTML = "Breakfast: ";
-          breakfastMenuTitle.className = "meal-title";
-          breakfastMenuRecipes.innerHTML = dayMenu.breakfast ?? "none";
-          breakfastMenuRecipes.className = "meal-recipes";
-
-          breakfastMenuList.className = "meal-description breakfast-description";
-          breakfastMenuList.appendChild(breakfastMenuItems);
-          breakfastMenuItems.appendChild(breakfastMenuTitle);
-          breakfastMenuItems.appendChild(breakfastMenuRecipes);
-          dayListItem.appendChild(breakfastMenuList);
+          dayListItem.appendChild(this.renderMeal("Breakfast", "breakfast", dayMenu.breakfast));
         }
 
         // Lunch.
         if (dayMenu.lunch || !this.config.hideEmptyMeals) {
-          const lunchMenuList = document.createElement("ul");
-          const lunchMenuItems = document.createElement("li");
-          const lunchMenuTitle = document.createElement("span");
-          const lunchMenuRecipes = document.createElement("span");
-
-          lunchMenuTitle.innerHTML = "Lunch: ";
-          lunchMenuTitle.className = "meal-title";
-          lunchMenuRecipes.innerHTML = dayMenu.lunch ?? "none";
-          lunchMenuRecipes.className = "meal-recipes";
-
-          lunchMenuList.className = "meal-description lunch-description";
-          lunchMenuList.appendChild(lunchMenuItems);
-          lunchMenuItems.appendChild(lunchMenuTitle);
-          lunchMenuItems.appendChild(lunchMenuRecipes);
-          dayListItem.appendChild(lunchMenuList);
+          dayListItem.appendChild(this.renderMeal("Lunch", "lunch", dayMenu.lunch));
         }
       });
 
@@ -176,6 +150,77 @@ Module.register("MMM-TitanSchoolMealMenu", {
     }
 
     return wrapper;
+  },
+
+  /**
+   * Renders one meal (breakfast or lunch) for a day.
+   *
+   * @param {string} title - "Breakfast" or "Lunch"
+   * @param {string} mealClass - CSS class suffix ("breakfast" or "lunch")
+   * @param {Object|null} menu - { main, alternatives: [{ label, text }], sides: [], text } from the node helper
+   */
+  renderMeal: function (title, mealClass, menu) {
+    const mealList = document.createElement("ul");
+    const mealItem = document.createElement("li");
+    const mealTitle = document.createElement("span");
+    const mealRecipes = document.createElement("span");
+
+    mealTitle.innerHTML = `${title}: `;
+    mealTitle.className = "meal-title";
+    mealRecipes.className = "meal-recipes";
+
+    if (!menu) {
+      mealRecipes.textContent = "none";
+    } else if (this.config.layout === "sentence") {
+      mealRecipes.textContent = menu.text || "none";
+    } else {
+      this.renderMealLines(mealRecipes, menu);
+    }
+
+    mealList.className = `meal-description ${mealClass}-description`;
+    mealList.appendChild(mealItem);
+    mealItem.appendChild(mealTitle);
+    mealItem.appendChild(mealRecipes);
+    return mealList;
+  },
+
+  /**
+   * "lines" layout: the main entree on its own line, each alternative meal on a dimmed "or ..." line,
+   * then the shared sides on a smaller dimmed line.
+   */
+  renderMealLines: function (container, menu) {
+    const lines = [];
+
+    if (menu.main) {
+      lines.push({ className: "meal-main", text: menu.main });
+    }
+
+    if (this.config.showAlternatives) {
+      (menu.alternatives || []).forEach((alternative) => {
+        // Only the very first line of a meal goes without an "or"
+        const prefix = alternative.label || (lines.length > 0 ? "or" : "");
+        lines.push({
+          className: "meal-alternative dimmed",
+          text: `${prefix} ${alternative.text}`.trim()
+        });
+      });
+    }
+
+    if (this.config.showSides && (menu.sides || []).length > 0) {
+      lines.push({ className: "meal-sides dimmed", text: menu.sides.join(" \u00b7 ") });
+    }
+
+    if (lines.length === 0) {
+      container.textContent = "none";
+      return;
+    }
+
+    lines.forEach((line) => {
+      const lineElement = document.createElement("div");
+      lineElement.className = line.className;
+      lineElement.textContent = line.text;
+      container.appendChild(lineElement);
+    });
   },
 
   getScripts: function () {

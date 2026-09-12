@@ -57,7 +57,7 @@ The module follows MagicMirror²'s standard architecture with three main compone
 
 **Multi-Instance Support**: The notification system uses a namespacing pattern `TITANSCHOOLS_{ACTION}::{instanceName}` where instanceName combines buildingId and districtId. This allows multiple module instances to coexist without interference.
 
-**Recipe Category Filtering**: The API returns meals organized by `RecipeCategories` (Entrees, Grain, Fruit, Vegetable, Milk, Condiment, Extra). The `recipeCategoriesToInclude` config controls which categories are displayed. Empty array means show all categories.
+**Recipe Category Filtering**: `recipeCategoriesToInclude` (empty = all) and `recipeCategoriesToExclude` (default `["Milk"]`) filter API `RecipeCategories` by `CategoryName`, case-insensitively. See "Menu Parsing and Formatting" for how the remaining categories are laid out.
 
 **Date Label Generation**: The `upcomingRelativeDates()` function generates human-friendly labels (Today, Tomorrow, or day of week) for the configured number of days to display.
 
@@ -65,67 +65,62 @@ The module follows MagicMirror²'s standard architecture with three main compone
 
 **Error Handling**: API errors are categorized as 500-level (service unavailable) or 400-level (bad request/config issue). The module retries failed requests after `retryDelayMs`.
 
-## Smart Natural Language Formatting System
+## Menu Parsing and Formatting
 
-The module uses a sophisticated three-stage formatting system to convert raw API recipe data into readable, grammatically correct menu descriptions:
+`TitanSchoolsClient` turns one day's `MenuMeals[]` into a structured menu and then formats it two ways (a per-line structure for the default `lines` layout, and a legacy sentence for `layout: "sentence"`).
 
-### Stage 1: Merge "with" Items
+### Stage 1: Parse MenuMeals by name — `parseMenuMeals(menuMeals)`
 
-The `mergeWithItems()` method (TitanSchoolsClient.js) detects recipes whose names start with "with " (case-insensitive) and merges them with the preceding recipe, wrapping them in parentheses to clearly distinguish them from side dishes:
+Since fall 2026 the API splits a day into several **named** MenuMeals, and the name carries the meaning. `classifyMenuMeal(name)` maps each to:
 
-```javascript
-["Cheese Tortellini", "with Marinara Sauce", "Chicken Smackers"]
-→ ["Cheese Tortellini (with Marinara Sauce)", "Chicken Smackers"]
+- **main** — anything not matched below (e.g. `"2-1 Elementary"`, `"1-4 MS"`, or an unnamed meal in older responses)
+- **alternative** — `/choice 2|choice two|grab & go|box lunch|alternat/i` (e.g. `"2-1 Choice 2"`, `"2-3 Grab & Go 2"`)
+- **shared** — `/for all|all entrees|shared/i` (e.g. `"Sides for All Entrees"`)
 
-["Pizza", "with Sauce", "with Extra Cheese"]
-→ ["Pizza (with Sauce and Extra Cheese)"]
+Within a meal, `categorizeRecipeCategory(categoryName)` maps each RecipeCategory to a role:
+
+- `entrees` — contains "entree" or "main"
+- `with` — category named "With" / "W/" (items served with the entree; **these used to be recipe-name prefixes**, see Stage 1b)
+- `over` — category named "Over" (what the entree is served over)
+- `sides` — contains "side"; meal-specific sides such as burger toppings
+- `alternative` — legacy: a single category describing a whole alternative meal ("Choice 2 - includes fruit, vegetable & milk", "Box Lunch")
+- `other` — everything else (Grain, Fruit, Vegetable, "Fruits & Vegetables", Milk, Dessert, Condiment); always treated as shared sides
+
+Rules: categories in a **shared** meal, `other` categories anywhere, and `sides` in the main meal *when the day has no shared meal* all go to `parsed.sharedSides`. Everything else attaches to its meal (`{ name, entrees, with, over, sides }`). Recipe names pass through `cleanRecipeName()` (strips leading `**` and trailing `-NEW!!` / `(NEW)` markers).
+
+Result shape: `{ main: Meal, alternatives: Meal[], sharedSides: [{ categoryName, recipes }] }`.
+
+### Stage 1b: Merge legacy "with" recipe names — `mergeWithItems(recipes)`
+
+Older data expressed accompaniments as recipe names starting with `"with "`, `"w/"` or `"over "`. These are folded into the preceding recipe in parentheses: `["Mixed Greens Salad", "with Dressing"]` → `["Mixed Greens Salad (with Dressing)"]`; consecutive items combine: `["Pizza", "with Sauce", "with Cheese"]` → `["Pizza (with Sauce and Cheese)"]`.
+
+### Stage 2: Filtering
+
+- `recipeCategoriesToInclude` (default `[]` = all) and `recipeCategoriesToExclude` (default `["Milk"]`) are applied per category, case-insensitively, in `isCategoryIncluded()`. `with`/`over` categories always pass the include filter.
+- `hideEverydaySides` (default `false`): `removeEverydaySides()` drops shared sides that appear on every non-empty day of the fetched window (e.g. "Assorted Fruit Choices"). Runs per serving session before formatting.
+
+### Stage 3: Format — `formatParsedMenu(parsed)`
+
+Returns `null` when nothing is left to show, otherwise:
+
+```js
+{
+  main: "Mandarin Orange Chicken over Fluffy Brown Rice",       // formatMealLine(parsed.main)
+  alternatives: [{ label: "", text: "Yogurt Parfait with Granola Packet" }],  // label = alternativeLabel with {categoryName} → meal name minus cycle prefix ("2-4 Choice 2" → "Choice 2")
+  sides: ["Steamed Broccoli", "Fresh Veggies", "Fortune Cookie"], // shared sides, flat
+  text: "Mandarin Orange Chicken over Fluffy Brown Rice with sides of ... . Or Yogurt Parfait with Granola Packet."  // formatSentence(parsed)
+}
 ```
 
-This fixes awkward API data like "Tortellini or with Marinara Sauce" and transforms it into natural language: "Tortellini (with Marinara Sauce)". The parentheses make it clear that the "with" item is part of the entree, not a side dish (which are also prefixed with "with" in Stage 3).
+`formatMealLine(meal, sidesLimit)`: entrees joined with `entreeJoiner` (or with "and" for legacy category-alternatives), then `over X`, then `with A, B, and more` where meal-specific sides are capped at `mealSidesLimit` (default 2; 0 hides them).
 
-When multiple consecutive "with" items appear, they are combined into a single set of parentheses with the word "with" removed from subsequent items and joined with "and".
+`formatSentence(parsed)`: the legacy one-sentence form. Entrees (+with/over) then `with sides of` / `with a side of` (or `, plus sides of` when the entree already has "with" items) listing meal-specific **and** shared sides uncapped, then each alternative as `Or ...`, trailing period. `showCategoryLabels` swaps the prefixes for `Entrees:` / `Sides:`. `formatMenu(recipeCategories)` wraps a flat category list in one unnamed meal and returns this sentence (kept for tests/back-compat).
 
-### Stage 2: Categorize Recipe Categories
+### Frontend rendering (MMM-TitanSchoolMealMenu.js)
 
-The `categorizeRecipeCategory()` method auto-detects the type of each RecipeCategory:
+`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. Inside `.meal-recipes`, `layout: "lines"` emits `<div class="meal-main">`, `<div class="meal-alternative dimmed">or …</div>` per alternative (when `showAlternatives`), and `<div class="meal-sides dimmed">a · b · c</div>` (when `showSides`). `layout: "sentence"` emits `menu.text`. Text is set via `textContent`, not `innerHTML`.
 
-- **Entrees**: Categories containing "entree" or "main" (e.g., "Main Entrees")
-- **Sides**: All other categories except alternatives (e.g., "Sides", "Grain", "Fruit", "Vegetable")
-- **Alternatives**: Categories for complete alternative meals:
-  - Contains "box lunch" or "choice 2" or "choice two"
-  - Contains "includes fruit" (common pattern for alternative meal descriptions)
-
-### Stage 3: Format with Grammar Rules
-
-The `formatMenu()` method applies different grammar rules based on category type:
-
-**Entrees:**
-- Multiple entrees are joined with `entreeJoiner` (default: " or ")
-- Example: `"Cheeseburger or Hamburger or Spicy Chicken Sandwich"`
-
-**Sides:**
-- Always joined with "and" conjunction using `joinWithConjunction()` with Oxford comma (if enabled)
-- Prefixed with "with sides of " when there are entrees
-- Example: `"with sides of Macaroni & Cheese, Green Beans, and Fresh Veggies"`
-
-**Alternatives:**
-- Separated from main meal with a period
-- Label controlled by `alternativeLabel` config (default: "" shows just "Or {items}")
-- Supports `{categoryName}` placeholder to display full category name
-- Example (default): `"Or PBJ Uncrustable, String Cheese, Baked Chips"`
-- Example (with label): `"Or Choice 2 - includes fruit, vegetable & milk: PBJ Uncrustable..."`
-
-**Trailing Period:**
-- ALL menu descriptions get a trailing period
-- Without alternatives: `"Chicken Tenders with sides of Green Beans."`
-- With alternatives: `"Main meal. Or alternative."`
-
-### Formatting Methods
-
-- `mergeWithItems(recipes[])` - Merges "with" items with preceding recipes, wrapping them in parentheses. Multiple consecutive "with" items are combined into a single parenthetical.
-- `categorizeRecipeCategory(categoryName)` - Returns 'entrees', 'sides', or 'alternative'
-- `joinWithConjunction(items[], finalConjunction)` - Grammatically joins items with commas and conjunction
-- `formatMenu(recipeCategories[])` - Main orchestrator that applies all formatting rules
+`node_helper.js` passes the whole module config to `TitanSchoolsClient`, so every formatting option in `defaults` reaches the client.
 
 ## API Response Structure
 
@@ -133,10 +128,12 @@ The LinqConnect API returns data in this shape:
 - `FamilyMenuSessions[]` - Contains separate sessions for breakfast and lunch
   - `ServingSession` - String matching "breakfast" or "lunch" (case-insensitive)
   - `MenuPlans[0].Days[]` - Array of daily menus
-    - `Date` - Date string
-    - `MenuMeals[].RecipeCategories[].Recipes[]` - Nested structure of meal items
-      - `CategoryName` - Used for filtering (Entrees, Grain, etc.)
-      - `RecipeName` - Actual food item name
+    - `Date` - Date string (`"9/14/2026"`)
+    - `MenuMeals[]` - One per meal grouping. `MenuMealName` (may be absent in old data) is e.g. `"2-1 Elementary"`, `"2-1 Choice 2"`, `"Sides for All Entrees"`
+      - `RecipeCategories[]` - `CategoryName` is e.g. Entrees, With, Over, Sides, Fruits & Vegetables, Dessert, Milk
+        - `Recipes[]` - `RecipeName` is the food item name (may contain data-entry noise like `**` or `-NEW!!`)
+
+Two mocks live in `test/unit/mocks/`: `mockApiResponse.js` (2023, single unnamed MenuMeal per day) and `mockApiResponseNamedMeals.js` (Sept 2026, named MenuMeals, nutrition stripped). To look at live data for a school, hit `https://api.linqconnect.com/api/FamilyMenu?buildingId=…&districtId=…&startDate=m-d-Y&endDate=m-d-Y` with a browser User-Agent header (the API 403s without one).
 
 ## Configuration
 
@@ -147,34 +144,28 @@ Optional but commonly customized:
   - If `bufferDays` > 0: Shows N days with menu data (skips empty days like weekends)
   - If `bufferDays` = 0: Shows N consecutive calendar days (old behavior)
 - `bufferDays` (default: 7) - Number of extra days to fetch as buffer for filtering. Set to 0 to disable filtering and show consecutive days instead. Increase to 14-21 for extended holiday breaks.
-- `recipeCategoriesToInclude` (default: ["Entrees", "Grain"]) - Which food categories to display
+- `recipeCategoriesToInclude` (default: []) - Restrict to these categories; empty = all. "With"/"Over" always pass.
+- `recipeCategoriesToExclude` (default: ["Milk"]) - Hide these categories.
 - `updateIntervalMs` (default: 3600000) - How often to refresh data
 - `displayCurrentWeek` (default: false) - Start from beginning of week instead of today
 - `hideEmptyDays` / `hideEmptyMeals` (default: false) - Control visibility of days/meals without data. Note: When `bufferDays` > 0, empty days are already filtered at the data level, making `hideEmptyDays` redundant.
 - `debug` (default: false) - Enable verbose logging
 
-**Formatting Options** (added in smart natural language formatting system):
-- `entreeJoiner` (default: " or ") - Text used to join multiple entree items
-  - Example: Set to ", " for "Cheeseburger, Hamburger, Spicy Chicken" instead of "Cheeseburger or Hamburger or Spicy Chicken"
-- `showCategoryLabels` (default: false) - Display category labels (e.g., "Entrees:", "Sides:") before menu items
-- `useOxfordComma` (default: true) - Use Oxford comma before final "and" in lists of 3+ items
-  - true: "item1, item2, and item3"
-  - false: "item1, item2 and item3"
-- `alternativeLabel` (default: "") - Label shown before alternative meal options (like "Box Lunch" or "Choice 2")
-  - Empty string (default): Shows "Or {items}" without category name
-  - Supports `{categoryName}` placeholder: "Or {categoryName}:" displays full category name
-  - Custom text: "Alternative:" or any other prefix you prefer
-  - Examples:
-    - `""` → "Or PBJ Uncrustable, String Cheese, Baked Chips"
-    - `"Or {categoryName}:"` → "Or Choice 2 - includes fruit, vegetable & milk: PBJ Uncrustable..."
-    - `"Alternative:"` → "Alternative: PBJ Uncrustable, String Cheese, Baked Chips"
+**Display options:**
+- `layout` (default: "lines") - "lines" (entree / "or alternative" / sides on separate lines) or "sentence" (legacy one-sentence form)
+- `showAlternatives` (default: true), `showSides` (default: true) - Toggle the alternative and shared-sides lines in the lines layout
+- `mealSidesLimit` (default: 2) - Meal-specific sides attached to an entree before "and more"; 0 hides them
+- `hideEverydaySides` (default: false) - Drop shared sides that appear on every fetched day
+- `entreeJoiner` (default: " or "), `useOxfordComma` (default: true), `showCategoryLabels` (default: false, sentence layout only)
+- `alternativeLabel` (default: "") - Prefix for alternative meals; `{categoryName}` is replaced by the meal name minus its cycle prefix ("Choice 2", "Grab & Go"). Empty means "or"/"Or".
 
 ## Testing
 
 Tests are organized into:
 - `test/unit/` - Unit tests for TitanSchoolsClient data processing
 - `test/integration/` - Tests verifying API response shape
-- `test/unit/mocks/mockApiResponse.js` - Mock data for testing without API calls
+- `test/unit/mocks/mockApiResponse.js` - 2023-shape mock (single unnamed MenuMeal per day)
+- `test/unit/mocks/mockApiResponseNamedMeals.js` - 2026-shape mock (named MenuMeals: main / Choice 2 / Sides for All Entrees)
 
 The `TitanSchoolsClient` has a `fetchMockMenu()` method that uses mock data for testing.
 
