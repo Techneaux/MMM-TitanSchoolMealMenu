@@ -220,6 +220,6 @@ Always: `cp config.js config.js.bak-$(date +%Y%m%d-%H%M%S)` first, edit with `se
 
 The Pi's `custom.css` hides `.meal-title` and `.breakfast-description` for this module and sets `max-width: 450px` / `li { font-size: 16px }` — keep those CSS hooks stable, and remember lines wrap at 450px when judging length.
 
-### Backups
+### Backups and the private runbook
 
-Config-only snapshots of the Pi (config.js, custom.css, pm2 dump, crontab, module list) live on the user's Mac at `~/data/docs/personal/mm-backup/<date>/` (newest, contains real secrets — keep it out of anything synced or committed) and `~/Downloads/mm-backup/` (Dec 2025, secrets blanked). There is no SD-card image; a rebuild is: flash Raspberry Pi OS → install MagicMirror + pm2 → clone the modules in `modules-list.txt` → restore `config.js`, `custom.css`, `mm.sh`, crontab.
+The user keeps a private MagicMirror docs root on their Mac at `~/data/docs/personal/magicmirror/`: `README.md` is the full runbook (host details, cron schedule, this workflow, how to take a new config backup, rebuild steps) and `backups/<YYYY-MM-DD>/` holds config-only snapshots of the Pi (config.js, custom.css, pm2 dump, crontab, module list). The newest snapshot contains real secrets — never copy it into this repo or anywhere synced. There is no SD-card image. When the workflow in this section changes, update the runbook too.
