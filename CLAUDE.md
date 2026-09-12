@@ -173,3 +173,53 @@ The `TitanSchoolsClient` has a `fetchMockMenu()` method that uses mock data for 
 ## Finding buildingId and districtId
 
 Users need to inspect network requests on linqconnect.com to find their school's IDs in the query string parameters of requests to `/FamilyMenu`. These UUIDs are required for the module to function.
+
+## Development, Review, and Deploy Workflow
+
+This fork is the one that runs on the family's MagicMirror. Every change, however small, follows the same loop; keep it that way so the Pi and `main` never drift.
+
+### Repos and remotes
+
+- `origin` = **github.com/Techneaux/MMM-TitanSchoolMealMenu** — the user's fork. All branches, PRs, and merges go here. `gh` is authenticated as `Techneaux`.
+- `upstream` = github.com/dathbe/MMM-TitanSchoolMealMenu — read-only reference; never open PRs there unless explicitly asked.
+- The repo is **public**: never commit `config.js`, IDs paired with a family name, tokens, or backups.
+
+### The loop
+
+1. **Branch** from up-to-date `main`: `git checkout -b feature/<slug>` (or `fix/`, `docs/`).
+2. **Verify against live data before changing formatting.** The district edits its menus by hand and the shape drifts; don't reason from the mocks alone. Fetch a week for both configured schools (buildingIds are in the Pi's `config.js`; districtId is shared) and print `MenuMealName` / `CategoryName` / `RecipeName`, then run the response through `new TitanSchoolsClient({...}).extractMenusByDate(json)` and eyeball `main` / `alternatives` / `sides` / `text` per day. The API returns 403 without a browser `User-Agent`. When the shape changes, trim a real capture (strip `Nutrients`) into `test/unit/mocks/` and test against it.
+3. **Change + test**: `npx jest` must be green. Frontend changes have no unit tests — sanity-load the module with `new Function("Module", src)({ register: (n, o) => ... })` and read the DOM code carefully; the real check is the mirror.
+4. **Docs in the same commit**: README options table, this file, and `package.json` version (patch for CSS/wording, minor for options or data-shape changes).
+5. **Commit** with a body that says *why* (what the data looked like, what the mirror showed). End with the `Claude-Session:` line when working in Claude Code.
+6. **PR to `origin main`**: `gh pr create --repo Techneaux/MMM-TitanSchoolMealMenu --base main ...`. Copilot code review is **not** enabled on this repo (GitHub rejects the reviewer as "not a collaborator"); use the local `/code-review` skill for anything beyond CSS/wording and fix real findings before merging.
+7. **Merge**: `gh pr merge <n> --repo Techneaux/MMM-TitanSchoolMealMenu --squash --delete-branch`, then `git checkout main && git pull`.
+8. **Deploy** (see below) and **look at the mirror** — the user judges legibility on the actual wall-mounted screen with a photo wallpaper, which no local render reproduces. Expect a round or two of "too dim / too bold / too much space" follow-ups; each one goes through steps 1–8 again, small.
+
+### Deploying to the mirror
+
+The mirror is a Raspberry Pi running MagicMirror² under pm2; the module directory there is a plain `git clone` of `origin` on `main`.
+
+```bash
+ssh jason@raspberrypi.local        # key auth from the user's Mac; use the .local name, the IP moves
+cd ~/MagicMirror/modules/MMM-TitanSchoolMealMenu
+git pull --ff-only                  # must be a fast-forward; the Pi never has local commits
+npm install --omit=dev              # only needed if package.json deps changed
+pm2 restart MagicMirror
+pm2 logs MagicMirror --lines 60 --nostream | grep -iE "titan|TypeError|check_config"
+```
+
+`pm2 restart` reloads the Electron front end too, so a stale-JS "[object Object]" render is not a concern. Pre-existing, unrelated log noise: `[calendar] fetch failed` (Google Calendar timeouts) and `[updatenotification] Failed to retrieve repo info for MMM-TitanSchoolMealMenu` (its `git fetch --dry-run`); ignore both.
+
+Headless-browser screenshots of `http://<pi>:8080` hang (MagicMirror keeps sockets open) and `.local` names don't resolve inside the sandboxed browser — don't burn time on it; ask the user for a phone photo instead. `curl http://<pi>:8080/modules/MMM-TitanSchoolMealMenu/MMM-TitanSchoolMealMenu.js | grep <newSymbol>` is enough to confirm the served build.
+
+### Editing the mirror's config
+
+`~/MagicMirror/config/config.js` on the Pi holds two `MMM-TitanSchoolMealMenu` instances (Eastview, Century; same district, `position: "top_right"`, `classes: "page0"` for MMM-pages). Current non-default settings there: `size: "small"`, `numberOfDaysToDisplay: 2`, `hideEmptyDays`/`hideEmptyMeals: true`, `recipeCategoriesToInclude: []`, `hideEverydaySides: true`, `layout: "sentence"`.
+
+Always: `cp config.js config.js.bak-$(date +%Y%m%d-%H%M%S)` first, edit with `sed` or a heredoc, then validate with `node -e 'require("./config.js")'` (MagicMirror also runs `check_config` on start — look for "doesn't contain syntax errors" in the pm2 log) before `pm2 restart`. Prefer changing module defaults over adding config keys when the change is what every user would want; prefer config keys for family taste (layout, hideEverydaySides).
+
+The Pi's `custom.css` hides `.meal-title` and `.breakfast-description` for this module and sets `max-width: 450px` / `li { font-size: 16px }` — keep those CSS hooks stable, and remember lines wrap at 450px when judging length.
+
+### Backups
+
+Config-only snapshots of the Pi (config.js, custom.css, pm2 dump, crontab, module list) live on the user's Mac at `~/data/docs/personal/mm-backup/<date>/` (newest, contains real secrets — keep it out of anything synced or committed) and `~/Downloads/mm-backup/` (Dec 2025, secrets blanked). There is no SD-card image; a rebuild is: flash Raspberry Pi OS → install MagicMirror + pm2 → clone the modules in `modules-list.txt` → restore `config.js`, `custom.css`, `mm.sh`, crontab.
