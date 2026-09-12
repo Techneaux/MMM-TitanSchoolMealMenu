@@ -191,7 +191,15 @@ This fork is the one that runs on the family's MagicMirror. Every change, howeve
 3. **Change + test**: `npx jest` must be green. Frontend changes have no unit tests — sanity-load the module with `new Function("Module", src)({ register: (n, o) => ... })` and read the DOM code carefully; the real check is the mirror.
 4. **Docs in the same commit**: README options table, this file, and `package.json` version (patch for CSS/wording, minor for options or data-shape changes).
 5. **Commit** with a body that says *why* (what the data looked like, what the mirror showed). End with the `Claude-Session:` line when working in Claude Code.
-6. **PR to `origin main`**: `gh pr create --repo Techneaux/MMM-TitanSchoolMealMenu --base main ...`. Copilot code review is **not** enabled on this repo (GitHub rejects the reviewer as "not a collaborator"); use the local `/code-review` skill for anything beyond CSS/wording and fix real findings before merging.
+6. **PR to `origin main`**: `gh pr create --repo Techneaux/MMM-TitanSchoolMealMenu --base main ...`. For anything beyond CSS/wording, request a **GitHub Copilot code review** and fix the real findings before merging. Copilot cannot be requested by login (`gh pr edit --add-reviewer Copilot` fails to resolve the user, and the REST `requested_reviewers` endpoint returns 200 without adding anyone) — it is a Bot, so use the GraphQL mutation:
+
+   ```bash
+   PR=$(gh pr view <n> --repo Techneaux/MMM-TitanSchoolMealMenu --json id --jq .id)
+   gh api graphql -f query='mutation($prId:ID!,$botIds:[ID!]){requestReviews(input:{pullRequestId:$prId,botIds:$botIds,union:true}){pullRequest{number}}}' \
+     -F prId="$PR" -F botIds=BOT_kgDOCnlnWA
+   ```
+
+   `BOT_kgDOCnlnWA` is `copilot-pull-request-reviewer[bot]`. The review lands in a few minutes; read it with `gh api /repos/Techneaux/MMM-TitanSchoolMealMenu/pulls/<n>/reviews` and `.../comments`. Re-run the same mutation to re-review after pushing fixes. Do not use Claude Code's `/code-review` skill on this repo.
 7. **Merge**: `gh pr merge <n> --repo Techneaux/MMM-TitanSchoolMealMenu --squash --delete-branch`, then `git checkout main && git pull`.
 8. **Deploy** (see below) and **look at the mirror** — the user judges legibility on the actual wall-mounted screen with a photo wallpaper, which no local render reproduces. Expect a round or two of "too dim / too bold / too much space" follow-ups; each one goes through steps 1–8 again, small.
 
