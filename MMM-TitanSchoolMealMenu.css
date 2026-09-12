@@ -46,8 +46,8 @@
   font-weight: 400;
 }
 
-/* Separator between parts in the "sentence" layout ("|" by default) */
+/* Separator between parts in the "sentence" layout. The configured partSeparator string carries its own
+   spacing (default " | "), so it is rendered verbatim rather than padded here. */
 .MMM-TitanSchoolMealMenu .meal-part-separator {
-  padding: 0 0.35em;
   white-space: pre;
 }
