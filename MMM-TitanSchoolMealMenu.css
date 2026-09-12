@@ -28,8 +28,8 @@
   padding-left: 1em;
 }
 
-/* All parts of a meal share one bright, normal-weight style: lighter weights and greys were unreadable
-   on a photo wallpaper. The per-part classes are kept so custom.css can re-differentiate them. */
+/* All parts of a meal share one style: bright (greys were unreadable on a photo wallpaper) but light
+   weight (normal weight read as too bold). The per-part classes are kept so custom.css can re-differentiate them. */
 .MMM-TitanSchoolMealMenu .meal-description {
   margin-block: 0 0.35em;
 }
@@ -37,6 +37,6 @@
 .MMM-TitanSchoolMealMenu .meal-main,
 .MMM-TitanSchoolMealMenu .meal-alternative,
 .MMM-TitanSchoolMealMenu .meal-sides {
-  font-weight: 400;
+  font-weight: 300;
   color: var(--color-text-bright, #fff);
 }
