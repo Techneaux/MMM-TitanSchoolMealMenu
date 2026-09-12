@@ -106,6 +106,7 @@ Builds the object below, then returns `null` unless `mealHasContent(menu)` (main
 ```js
 {
   main: "Mandarin Orange Chicken over Fluffy Brown Rice",       // formatMealLine(parsed.main)
+  mainWithSides: "Mandarin Orange Chicken over Fluffy Brown Rice with Steamed Broccoli, Fresh Veggies, and Fortune Cookie", // shared sides folded in after the meal's own (capped) sides, before "and more"
   alternatives: [{ label: "", text: "Yogurt Parfait with Granola Packet" }],  // label = alternativeLabel with {categoryName} → meal name minus cycle prefix ("2-4 Choice 2" → "Choice 2")
   sides: ["Steamed Broccoli", "Fresh Veggies", "Fortune Cookie"], // shared sides, flat
   text: "Mandarin Orange Chicken over Fluffy Brown Rice with sides of ... . Or Yogurt Parfait with Granola Packet."  // formatSentence(parsed)
@@ -118,7 +119,7 @@ Builds the object below, then returns `null` unless `mealHasContent(menu)` (main
 
 ### Frontend rendering (MMM-TitanSchoolMealMenu.js)
 
-`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. Inside `.meal-recipes`, `layout: "lines"` emits `<div class="meal-main">`, `<div class="meal-alternative">or …</div>` per alternative (when `showAlternatives`), and `<div class="meal-sides"><span class="meal-sides-label">Sides: </span>a · b · c</div>` (when `showSides`; label from `sidesLabel`). No `dimmed` class: the mirror may have a photo wallpaper, so hierarchy is done with weight/brightness in the module CSS. `layout: "sentence"` emits `menu.text`. Text is set via `textContent`, not `innerHTML`.
+`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. `renderMealParts()` fills `.meal-recipes` with a `.meal-main` part (`mainWithSides` when `showSides`, else `main`) and one `.meal-alternative` part per alternative ("or …"; `alternativeLabel` replaces the "or"). `layout: "lines"` emits them as `<div>`s; `layout: "sentence"` emits `<span>`s each ending in a period, flowing as one paragraph. There is no separate sides line: per the family's experience the "Sides for All Entrees" go with the main meal, not the grab-and-go alternative. No `dimmed` class — the mirror may have a photo wallpaper, so hierarchy is weight/brightness in module CSS. Text is set via `textContent`, not `innerHTML`.
 
 `node_helper.js` passes the whole module config to `TitanSchoolsClient`, so every formatting option in `defaults` reaches the client.
 
@@ -152,11 +153,11 @@ Optional but commonly customized:
 - `debug` (default: false) - Enable verbose logging
 
 **Display options:**
-- `layout` (default: "lines") - "lines" (entree / "or alternative" / sides on separate lines) or "sentence" (legacy one-sentence form)
-- `showAlternatives` (default: true), `showSides` (default: true), `sidesLabel` (default: "Sides:") - Alternative and shared-sides lines in the lines layout
+- `layout` (default: "lines") - "lines" (main meal line, then "or alternative" lines) or "sentence" (same parts as one flowing paragraph)
+- `showAlternatives` (default: true), `showSides` (default: true) - Show alternatives; fold the day's sides into the main line
 - `mealSidesLimit` (default: 2) - Meal-specific sides attached to an entree before "and more"; 0 hides them
 - `hideEverydaySides` (default: false) - Drop shared sides that appear on every fetched day
-- `entreeJoiner` (default: " or "), `useOxfordComma` (default: true), `showCategoryLabels` (default: false, sentence layout only)
+- `entreeJoiner` (default: " or "), `useOxfordComma` (default: true), `showCategoryLabels` (default: false, only affects the client's `text` field)
 - `alternativeLabel` (default: "") - Prefix for alternative meals; `{categoryName}` is replaced by the meal name minus its cycle prefix ("Choice 2", "Grab & Go"). Empty means "or"/"Or".
 
 ## Testing

@@ -102,12 +102,14 @@ class TitanSchoolsClient {
    *     "label": "Tomorrow",
    *     "breakfast": {
    *       "main": "Banana Muffin or Maple Waffle Snaps",
+   *       "mainWithSides": "Banana Muffin or Maple Waffle Snaps with Breakfast Protein Item and Assorted Fruit Choices",
    *       "alternatives": [],
    *       "sides": ["Breakfast Protein Item", "Assorted Fruit Choices"],
    *       "text": "Banana Muffin or Maple Waffle Snaps with sides of Breakfast Protein Item and Assorted Fruit Choices."
    *     },
    *     "lunch": {
    *       "main": "Mandarin Orange Chicken over Fluffy Brown Rice",
+   *       "mainWithSides": "Mandarin Orange Chicken over Fluffy Brown Rice with Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie",
    *       "alternatives": [{ "label": "", "text": "Yogurt Parfait with Granola Packet" }],
    *       "sides": ["Steamed Broccoli", "Fresh Veggies", "Assorted Fruit Choices", "Fortune Cookie"],
    *       "text": "Mandarin Orange Chicken over Fluffy Brown Rice with sides of Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie. Or Yogurt Parfait with Granola Packet."
@@ -584,8 +586,9 @@ class TitanSchoolsClient {
    *
    * @param {Object} meal - { entrees, with, over, sides, entreesAreOneMeal }
    * @param {number} sidesLimit - Max meal-specific sides to list before "and more"; 0 hides them
+   * @param {Array} extraSides - Further sides to list after the meal's own (never capped), e.g. the day's shared sides
    */
-  formatMealLine(meal, sidesLimit = this.mealSidesLimit) {
+  formatMealLine(meal, sidesLimit = this.mealSidesLimit, extraSides = []) {
     let text = meal.entreesAreOneMeal
       ? this.joinWithConjunction(meal.entrees, 'and')
       : meal.entrees.join(this.entreeJoiner);
@@ -596,10 +599,13 @@ class TitanSchoolsClient {
     }
 
     const accompaniments = [...meal.with];
-    if (sidesLimit > 0 && meal.sides.length > sidesLimit) {
-      accompaniments.push(...meal.sides.slice(0, sidesLimit), 'more');
-    } else if (sidesLimit > 0) {
-      accompaniments.push(...meal.sides);
+    const truncated = sidesLimit > 0 && meal.sides.length > sidesLimit;
+    if (sidesLimit > 0) {
+      accompaniments.push(...(truncated ? meal.sides.slice(0, sidesLimit) : meal.sides));
+    }
+    accompaniments.push(...extraSides);
+    if (truncated) {
+      accompaniments.push('more');
     }
 
     if (accompaniments.length > 0) {
@@ -619,15 +625,19 @@ class TitanSchoolsClient {
       return null;
     }
 
+    const sharedSides = parsed.sharedSides.flatMap((group) => group.recipes);
     const menu = {
       main: this.formatMealLine(parsed.main),
+      // The main meal with the day's shared sides folded in ("Pizza with Corn and Apple"). The frontend shows this
+      // when showSides is on, since in practice the "Sides for All Entrees" go with the main meal, not the grab-and-go.
+      mainWithSides: this.formatMealLine(parsed.main, this.mealSidesLimit, sharedSides),
       alternatives: parsed.alternatives
         .map((meal) => ({
           label: this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name)),
           text: this.formatMealLine(meal),
         }))
         .filter((alternative) => alternative.text.length > 0),
-      sides: parsed.sharedSides.flatMap((group) => group.recipes),
+      sides: sharedSides,
       text: this.formatSentence(parsed),
     };
 

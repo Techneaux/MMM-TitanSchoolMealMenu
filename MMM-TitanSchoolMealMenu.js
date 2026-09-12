@@ -10,10 +10,9 @@ Module.register("MMM-TitanSchoolMealMenu", {
     weekStartsOnMonday: false,
     hideEmptyDays: false,
     hideEmptyMeals: false,
-    layout: "lines", // "lines": entree / alternatives / sides on separate lines. "sentence": one natural-language sentence.
+    layout: "lines", // "lines": main meal and each alternative on their own line. "sentence": one flowing paragraph per meal.
     showAlternatives: true, // Show alternative meals (Choice 2, Grab & Go, Box Lunch)
-    showSides: true, // Show the sides shared by every entree (fruit, vegetables, dessert)
-    sidesLabel: "Sides:", // Label in front of the shared sides line. "" for none.
+    showSides: true, // Fold the day's sides (fruit, vegetables, dessert) into the main meal
     mealSidesLimit: 2, // Max sides attached to an entree (burger toppings, etc.) before "and more". 0 hides them.
     hideEverydaySides: false, // Hide shared sides that appear on every fetched day (e.g. "Assorted Fruit Choices")
     recipeCategoriesToInclude: [], // Empty = all categories (except recipeCategoriesToExclude)
@@ -172,10 +171,8 @@ Module.register("MMM-TitanSchoolMealMenu", {
 
     if (!menu) {
       mealRecipes.textContent = "none";
-    } else if (this.config.layout === "sentence") {
-      mealRecipes.textContent = menu.text || "none";
     } else {
-      this.renderMealLines(mealRecipes, menu);
+      this.renderMealParts(mealRecipes, menu, this.config.layout === "sentence");
     }
 
     mealList.className = `meal-description ${mealClass}-description`;
@@ -186,51 +183,41 @@ Module.register("MMM-TitanSchoolMealMenu", {
   },
 
   /**
-   * "lines" layout: the main entree on its own line, each alternative meal on an "or ..." line,
-   * then the shared sides on a lighter, labelled line.
+   * Renders the main meal (with the day's sides folded in) followed by each alternative meal as "or ...".
+   *
+   * @param {boolean} inline - false: one block line per part ("lines" layout).
+   *                           true: parts flow as one paragraph, each a sentence ("sentence" layout).
    */
-  renderMealLines: function (container, menu) {
-    const lines = [];
+  renderMealParts: function (container, menu, inline) {
+    const parts = [];
 
-    if (menu.main) {
-      lines.push({ className: "meal-main", text: menu.main });
+    const mainText = this.config.showSides ? menu.mainWithSides || menu.main : menu.main;
+    if (mainText) {
+      parts.push({ className: "meal-main", text: mainText });
     }
 
     if (this.config.showAlternatives) {
       (menu.alternatives || []).forEach((alternative) => {
-        // Only the very first line of a meal goes without an "or"
-        const prefix = alternative.label || (lines.length > 0 ? "or" : "");
-        lines.push({
-          className: "meal-alternative",
-          text: `${prefix} ${alternative.text}`.trim()
-        });
+        // Only the very first part of a meal goes without an "or"
+        const joiner = parts.length > 0 ? (inline ? "Or" : "or") : "";
+        const prefix = alternative.label || joiner;
+        parts.push({ className: "meal-alternative", text: `${prefix} ${alternative.text}`.trim() });
       });
     }
 
-    if (this.config.showSides && (menu.sides || []).length > 0) {
-      lines.push({
-        className: "meal-sides",
-        label: this.config.sidesLabel,
-        text: menu.sides.join(" \u00b7 ")
-      });
-    }
-
-    if (lines.length === 0) {
+    if (parts.length === 0) {
       container.textContent = "none";
       return;
     }
 
-    lines.forEach((line) => {
-      const lineElement = document.createElement("div");
-      lineElement.className = line.className;
-      if (line.label) {
-        const labelElement = document.createElement("span");
-        labelElement.className = "meal-sides-label";
-        labelElement.textContent = `${line.label} `;
-        lineElement.appendChild(labelElement);
+    parts.forEach((part, index) => {
+      const element = document.createElement(inline ? "span" : "div");
+      element.className = part.className;
+      element.textContent = inline ? `${part.text}.` : part.text;
+      if (inline && index > 0) {
+        container.appendChild(document.createTextNode(" "));
       }
-      lineElement.appendChild(document.createTextNode(line.text));
-      container.appendChild(lineElement);
+      container.appendChild(element);
     });
   },
 
