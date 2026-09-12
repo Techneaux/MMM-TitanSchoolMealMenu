@@ -94,9 +94,9 @@ These are the possible options:
 | `weekStartsOnMonday`            | <p>Show Monday as the first day of the week. Set to `true` to show Monday as the first day of the week.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
 | `hideEmptyDays`                 | <p>Hide days without any meals.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`<br>**Note:** When `bufferDays` > 0, empty days are already filtered out at the data level. This option is primarily useful when `bufferDays` is set to 0.</p>|
 | `hideEmptyMeals`                | <p>Hide meals that are empty.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
-| `layout`                        | <p>How each meal is displayed.</p><p>**Type:** `string`<br>**Default value:** `"lines"`<br>**Possible values:** `"lines"` shows the main meal, each alternative meal ("or ..."), and the sides ("Sides: ...") on their own lines. `"sentence"` shows the same parts as one flowing paragraph ("Main meal. Or alternative. Sides: a, b, and c."), which takes the least vertical space.</p>|
+| `layout`                        | <p>How each meal is displayed.</p><p>**Type:** `string`<br>**Default value:** `"lines"`<br>**Possible values:** `"lines"` shows the main meal, its sides ("Sides: ..."), and each alternative meal ("or ...") on their own lines. `"sentence"` shows the same parts as one flowing paragraph ("Main meal. Sides: a, b, and c. Or alternative."), which takes the least vertical space.</p>|
 | `showAlternatives`              | <p>Show alternative meals (Choice 2, Grab & Go, Box Lunch).</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
-| `showSides`                     | <p>Show the day's sides (fruit, vegetables, dessert) after the meals.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
+| `showSides`                     | <p>Show the day's sides (fruit, vegetables, dessert) right after the main meal.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
 | `sidesLabel`                    | <p>Label in front of the sides. Set to `""` for no label.</p><p>**Type:** `string`<br>**Default value:** `"Sides:"`</p>|
 | `mealSidesLimit`                | <p>How many meal-specific sides (burger toppings, taco fixings, ...) to attach to an entree before saying "and more". Set to `0` to hide them.</p><p>**Type:** `integer`<br>**Default value:** `2`<br>**Example:** `"Build-Your-Own Burger with Fresh Burger Fixings, American Cheese Slice, and more"`</p>|
 | `hideEverydaySides`             | <p>Hide shared sides that show up on every fetched day (e.g. "Assorted Fruit Choices", "Fresh Veggies"), leaving only the sides that change from day to day. Only applies once at least 3 days with menus were fetched, so keep `bufferDays` at its default or higher.</p><p>**Type:** `boolean`<br>**Default value:** `false`</p>|
@@ -117,11 +117,11 @@ The LinqConnect API describes each day as a set of *meals*, each with several *r
 ```
 Monday
   Mandarin Orange Chicken over Fluffy Brown Rice          ← main meal ("2-4 Elementary")
+  Sides: Steamed Broccoli and Fortune Cookie              ← its sides ("Sides for All Entrees")
   or Yogurt Parfait with Granola Packet                   ← alternative meal ("2-4 Choice 2", "Grab & Go", "Box Lunch")
-  Sides: Steamed Broccoli and Fortune Cookie              ← sides ("Sides for All Entrees")
 ```
 
-or, with `layout: "sentence"`, as one paragraph: *Mandarin Orange Chicken over Fluffy Brown Rice. Or Yogurt Parfait with Granola Packet. Sides: Steamed Broccoli and Fortune Cookie.*
+or, with `layout: "sentence"`, as one paragraph: *Mandarin Orange Chicken over Fluffy Brown Rice. Sides: Steamed Broccoli and Fortune Cookie. Or Yogurt Parfait with Granola Packet.*
 
 Within a meal, `Entrees` are joined with `entreeJoiner`, `Over`/`With` categories are attached to the entree ("over Fluffy Brown Rice", "with Granola Packet"), and a `Sides` category is attached with up to `mealSidesLimit` items. Recipe names that themselves start with "with", "w/" or "over" are folded into the preceding item ("Mixed Greens Salad (with Dressing)"). Leading asterisks and trailing "-NEW!!" markers are removed.
 

@@ -119,7 +119,7 @@ Builds the object below, then returns `null` unless `mealHasContent(menu)` (main
 
 ### Frontend rendering (MMM-TitanSchoolMealMenu.js)
 
-`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. `renderMealParts()` fills `.meal-recipes` with a `.meal-main` part, one `.meal-alternative` part per alternative ("or …"; `alternativeLabel` replaces the "or"), and a `.meal-sides` part (`<span class="meal-sides-label">Sides: </span>` + `sidesText`, i.e. "a, b, and c" via `joinWithConjunction`; label from `sidesLabel`) when `showSides`. `layout: "lines"` emits them as `<div>`s; `layout: "sentence"` emits `<span>`s each ending in a period, flowing as one paragraph (the user's preferred form: everything for a day in one wrapped block, sides last). All parts share one bright, light-weight (300) style in module CSS (`.meal-main`, `.meal-alternative`, `.meal-sides`): the mirror has a photo wallpaper and both `dimmed` and weight-300 text were unreadable on it. The classes remain for `custom.css` overrides. Text is set via `textContent`, not `innerHTML`.
+`renderMeal()` keeps the existing DOM/CSS hooks (`.meal-description`, `.breakfast-description`, `.lunch-description`, `.meal-title`, `.meal-recipes`) so user `custom.css` keeps working. `renderMealParts()` fills `.meal-recipes` with, in order: a `.meal-main` part; a `.meal-sides` part (`<span class="meal-sides-label">Sides: </span>` + `sidesText`, i.e. "a, b, and c" via `joinWithConjunction`; label from `sidesLabel`) when `showSides` — sides go with the main meal, so they sit directly after it; then one `.meal-alternative` part per alternative ("or …"; `alternativeLabel` replaces the "or"). `layout: "lines"` emits them as `<div>`s; `layout: "sentence"` emits `<span>`s each ending in a period, flowing as one paragraph (the user's preferred form: everything for a day in one wrapped block — main, sides, then the "Or …" alternatives). All parts share one bright, light-weight (300) style in module CSS (`.meal-main`, `.meal-alternative`, `.meal-sides`): the mirror has a photo wallpaper and both `dimmed` and weight-300 text were unreadable on it. The classes remain for `custom.css` overrides. Text is set via `textContent`, not `innerHTML`.
 
 `node_helper.js` passes the whole module config to `TitanSchoolsClient`, so every formatting option in `defaults` reaches the client.
 
@@ -153,8 +153,8 @@ Optional but commonly customized:
 - `debug` (default: false) - Enable verbose logging
 
 **Display options:**
-- `layout` (default: "lines") - "lines" (main / "or alternative" / "Sides:" on separate lines) or "sentence" (same parts as one flowing paragraph)
-- `showAlternatives` (default: true), `showSides` (default: true), `sidesLabel` (default: "Sides:") - Show the "or …" alternatives and the trailing "Sides: …" part
+- `layout` (default: "lines") - "lines" (main / "Sides:" / "or alternative" on separate lines) or "sentence" (same parts as one flowing paragraph)
+- `showAlternatives` (default: true), `showSides` (default: true), `sidesLabel` (default: "Sides:") - Show the "Sides: …" part (after the main meal) and the "or …" alternatives
 - `mealSidesLimit` (default: 2) - Meal-specific sides attached to an entree before "and more"; 0 hides them
 - `hideEverydaySides` (default: false) - Drop shared sides that appear on every fetched day
 - `entreeJoiner` (default: " or "), `useOxfordComma` (default: true), `showCategoryLabels` (default: false, only affects the client's `text` field)
