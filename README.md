@@ -44,7 +44,7 @@ Add this to your MagicMirror² `config.js`:
         updateIntervalMs: 3600000, // Optional: Milliseconds between updates; Default: 3600000 (1 hour)
         numberOfDaysToDisplay: 3, // Optional: 0 - 5; Default: 3
         layout: "lines", // Optional: "lines" or "sentence"; Default: "lines"
-        recipeCategoriesToExclude: ["Milk"], // Optional: categories to hide; Default: ["Milk"]
+        recipeCategoriesToExclude: ["Milk", "Condiment"], // Optional: categories to hide; Default: ["Milk", "Condiment"]
         hideEverydaySides: false, // Optional: hide sides that appear every day (e.g. "Assorted Fruit Choices"); Default: false
         debug: false // Optional: boolean; Default: false; Setting this to true will output verbose logs
     },
@@ -98,9 +98,9 @@ These are the possible options:
 | `showAlternatives`              | <p>Show alternative meals (Choice 2, Grab & Go, Box Lunch) in the `lines` layout.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
 | `showSides`                     | <p>Show the sides shared by every entree (fruit, vegetables, dessert) in the `lines` layout.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
 | `mealSidesLimit`                | <p>How many meal-specific sides (burger toppings, taco fixings, ...) to attach to an entree in the `lines` layout before saying "and more". Set to `0` to hide them.</p><p>**Type:** `integer`<br>**Default value:** `2`<br>**Example:** `"Build-Your-Own Burger with Fresh Burger Fixings, American Cheese Slice, and more"`</p>|
-| `hideEverydaySides`             | <p>Hide shared sides that show up on every fetched day (e.g. "Assorted Fruit Choices", "Fresh Veggies"), leaving only the sides that change from day to day.</p><p>**Type:** `boolean`<br>**Default value:** `false`</p>|
-| `recipeCategoriesToInclude`     | <p>An array of recipe categories to display. Leave empty to display all categories.</p><p>**Type:** `array`<br>**Example:** `[ "Entrees", "Grain", "Fruit", "Vegetable" ]`<br>**Default value:** `[]` (all categories)</p><p>**Note:** Matching is case-insensitive, and the "With"/"Over" categories that modify an entree are always kept.</p><p>**Note 2:** Your district might not use the categories in this module. You will need to find the categories by visiting the website.</p>|
-| `recipeCategoriesToExclude`     | <p>An array of recipe categories to hide.</p><p>**Type:** `array`<br>**Example:** `[ "Milk", "Condiment" ]`<br>**Default value:** `[ "Milk" ]`</p>|
+| `hideEverydaySides`             | <p>Hide shared sides that show up on every fetched day (e.g. "Assorted Fruit Choices", "Fresh Veggies"), leaving only the sides that change from day to day. Only applies once at least 3 days with menus were fetched, so keep `bufferDays` at its default or higher.</p><p>**Type:** `boolean`<br>**Default value:** `false`</p>|
+| `recipeCategoriesToInclude`     | <p>An array of recipe categories to display. Leave empty to display all categories.</p><p>**Type:** `array`<br>**Example:** `[ "Entrees", "Grain", "Fruit", "Vegetable" ]`<br>**Default value:** `[]` (all categories)</p><p>**Note:** Matching is case-insensitive. When this list is set it alone decides what is shown (so listing `"Milk"` here overrides the default `recipeCategoriesToExclude`), and the "With"/"Over" categories that modify an entree are kept along with it.</p><p>**Note 2:** Your district might not use the categories in this module. You will need to find the categories by visiting the website.</p>|
+| `recipeCategoriesToExclude`     | <p>An array of recipe categories to hide. Ignored when `recipeCategoriesToInclude` is set.</p><p>**Type:** `array`<br>**Example:** `[ "Milk", "Condiment", "Extra" ]`<br>**Default value:** `[ "Milk", "Condiment" ]`</p>|
 | `entreeJoiner`                  | <p>Text used to join multiple entree items.</p><p>**Type:** `string`<br>**Example:** `", "`<br>**Default value:** `" or "`</p>|
 | `showCategoryLabels`            | <p>Display category labels (e.g., "Entrees:", "Sides:") before menu items.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`</p>|
 | `useOxfordComma`                | <p>Use Oxford comma before final "and" in lists of 3+ items.</p><p>**Type:** `boolean`<br>**Default value:** `true`<br>**Possible values:** `true` and `false`</p>|
@@ -123,6 +123,8 @@ Monday
 Within a meal, `Entrees` are joined with `entreeJoiner`, `Over`/`With` categories are attached to the entree ("over Fluffy Brown Rice", "with Granola Packet"), and a `Sides` category is attached with up to `mealSidesLimit` items. Recipe names that themselves start with "with", "w/" or "over" are folded into the preceding item ("Mixed Greens Salad (with Dressing)"). Leading asterisks and trailing "-NEW!!" markers are removed.
 
 Older API responses with a single unnamed meal per day are still supported: its entrees become the main meal and the remaining categories become the shared sides.
+
+**Upgrading from 0.5:** `recipeCategoriesToInclude` used to default to `["Entrees", "Grain"]` and now defaults to `[]` (everything except `recipeCategoriesToExclude`). If you preferred the old, shorter output, set `recipeCategoriesToInclude: ["Entrees", "Grain"]` explicitly, or use `showSides: false`.
 
 `layout: "sentence"` renders the same information as one sentence, e.g. `Mandarin Orange Chicken over Fluffy Brown Rice with sides of Steamed Broccoli, Fresh Veggies, and Fortune Cookie. Or Yogurt Parfait with Granola Packet.`
 

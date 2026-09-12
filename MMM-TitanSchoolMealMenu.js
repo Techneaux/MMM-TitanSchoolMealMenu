@@ -16,7 +16,7 @@ Module.register("MMM-TitanSchoolMealMenu", {
     mealSidesLimit: 2, // Max sides attached to an entree (burger toppings, etc.) before "and more". 0 hides them.
     hideEverydaySides: false, // Hide shared sides that appear on every fetched day (e.g. "Assorted Fruit Choices")
     recipeCategoriesToInclude: [], // Empty = all categories (except recipeCategoriesToExclude)
-    recipeCategoriesToExclude: ["Milk"],
+    recipeCategoriesToExclude: ["Milk", "Condiment"],
     entreeJoiner: " or ",
     showCategoryLabels: false,
     useOxfordComma: true,

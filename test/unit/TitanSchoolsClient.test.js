@@ -235,7 +235,8 @@ describe("TitanSchoolsClient parses API response correctly", () => {
               Days: [
                 dayWith("9/14/2026", ["Corn", "Fruit Cup", "Fresh Veggies"]),
                 dayWith("9/15/2026", ["Fruit Cup", "Green Beans", "Fresh Veggies"]),
-                { Date: "9/16/2026", MenuMeals: [] }
+                { Date: "9/16/2026", MenuMeals: [] },
+                dayWith("9/17/2026", ["Fruit Cup", "Peas", "Fresh Veggies"])
               ]
             }
           ]
@@ -255,6 +256,140 @@ describe("TitanSchoolsClient parses API response correctly", () => {
       expect(lunches[0].menu.sides).toEqual(["Corn"]);
       expect(lunches[1].menu.sides).toEqual(["Green Beans"]);
       expect(lunches[2].menu).toBeNull();
+      expect(lunches[3].menu.sides).toEqual(["Peas"]);
+    });
+
+    it("leaves a short window alone so a side that merely repeats twice is not removed", () => {
+      const c = new TitanSchoolsClient({ ...config, debug: false, hideEverydaySides: true });
+      const shortResponse = {
+        FamilyMenuSessions: [{ ServingSession: "Lunch", MenuPlans: [{ Days: response.FamilyMenuSessions[0].MenuPlans[0].Days.slice(0, 2) }] }]
+      };
+      const [lunches] = c.extractMenusByDate(shortResponse);
+      expect(lunches[0].menu.sides).toEqual(["Corn", "Fruit Cup", "Fresh Veggies"]);
+    });
+  });
+
+  describe("edge cases in the response shape", () => {
+    const parse = (menuMeals, options = {}) => {
+      const c = new TitanSchoolsClient({ ...config, debug: false, ...options });
+      return c.formatParsedMenu(c.parseMenuMeals(menuMeals));
+    };
+    const cat = (CategoryName, ...names) => ({ CategoryName, Recipes: names.map((RecipeName) => ({ RecipeName })) });
+
+    it("does not drop a day whose first meal or category is empty", () => {
+      const c = new TitanSchoolsClient({ ...config, debug: false });
+      const [lunches] = c.extractMenusByDate({
+        FamilyMenuSessions: [{
+          ServingSession: "Lunch",
+          MenuPlans: [{ Days: [
+            { Date: "9/14/2026", MenuMeals: [{ MenuMealName: "2-1 Elementary", RecipeCategories: [] }, { MenuMealName: "2-1 Choice 2", RecipeCategories: [cat("Entrees", "PBJ")] }] },
+            { Date: "9/15/2026" },
+            { Date: "9/16/2026", MenuMeals: [{}] }
+          ] }]
+        }]
+      });
+      expect(lunches[0].menu.main).toBe("PBJ");
+      expect(lunches[1].menu).toBeNull();
+      expect(lunches[2].menu).toBeNull();
+    });
+
+    it("keeps an alternative meal's fruit and grain with that alternative", () => {
+      const menu = parse([
+        { MenuMealName: "2-1 Elementary", RecipeCategories: [cat("Entrees", "Pizza"), cat("Vegetable", "Corn")] },
+        { MenuMealName: "2-1 Choice 2", RecipeCategories: [cat("Entrees", "PBJ"), cat("Grain", "Baked Chips"), cat("Fruit", "Apple")] }
+      ]);
+      expect(menu.main).toBe("Pizza");
+      expect(menu.alternatives[0].text).toBe("PBJ with Baked Chips and Apple");
+      expect(menu.sides).toEqual(["Corn"]);
+    });
+
+    it('treats a "for all" meal that has its own entrees as the main meal', () => {
+      const menu = parse([{ MenuMealName: "Lunch for All Grades", RecipeCategories: [cat("Entrees", "Pizza", "Burger"), cat("Vegetable", "Corn")] }]);
+      expect(menu.main).toBe("Pizza or Burger");
+      expect(menu.sides).toEqual(["Corn"]);
+    });
+
+    it("promotes the only alternative to the main meal when no main meal exists", () => {
+      const menu = parse([{ MenuMealName: "Grab & Go Breakfast", RecipeCategories: [cat("Entrees", "Muffin")] }]);
+      expect(menu.main).toBe("Muffin");
+      expect(menu.alternatives).toEqual([]);
+      expect(menu.text).toBe("Muffin.");
+    });
+
+    it("recognizes hyphenated Grab-N-Go and Choice 3 as alternatives, but not Choice 1", () => {
+      expect(client.classifyMenuMeal("2-1 Grab-N-Go")).toBe("alternative");
+      expect(client.classifyMenuMeal("Grab-and-Go")).toBe("alternative");
+      expect(client.classifyMenuMeal("2-1 Choice 3")).toBe("alternative");
+      expect(client.classifyMenuMeal("2-1 Choice 1")).toBe("main");
+    });
+
+    it('recognizes a legacy "Grab & Go" category as an alternative', () => {
+      const menu = parse([{ RecipeCategories: [cat("Entrees", "Chicken Sandwich"), cat("Grab & Go", "PBJ", "String Cheese"), cat("Vegetable", "Corn")] }]);
+      expect(menu.main).toBe("Chicken Sandwich");
+      expect(menu.alternatives[0].text).toBe("PBJ and String Cheese");
+      expect(menu.sides).toEqual(["Corn"]);
+    });
+
+    it("lets an explicit include of Milk beat the default exclude", () => {
+      const menu = parse([{ RecipeCategories: [cat("Entrees", "Pizza"), cat("Milk", "1% Milk"), cat("Fruit", "Apple")] }], { recipeCategoriesToInclude: ["Entrees", "Milk"] });
+      expect(menu.sides).toEqual(["1% Milk"]);
+    });
+
+    it("excludes Condiment by default", () => {
+      const menu = parse([{ RecipeCategories: [cat("Entrees", "Burger"), cat("Condiment", "Ketchup")] }]);
+      expect(menu.sides).toEqual([]);
+    });
+
+    it('drops orphaned "With"/"Over" items when their entree was filtered out', () => {
+      const menu = parse(
+        [{ RecipeCategories: [cat("Entrees", "Cheese Tortellini"), cat("With", "Marinara Sauce"), cat("Fruit", "Apple")] }],
+        { recipeCategoriesToInclude: ["Fruit"] }
+      );
+      expect(menu.main).toBe("");
+      expect(menu.sides).toEqual(["Apple"]);
+      expect(menu.text).toBe("Apple.");
+    });
+
+    it('does not let a "With" category in the shared-sides meal bypass the include filter', () => {
+      const menu = parse(
+        [
+          { MenuMealName: "2-1 Elementary", RecipeCategories: [cat("Entrees", "Pizza")] },
+          { MenuMealName: "Sides for All Entrees", RecipeCategories: [cat("With", "Ranch Cup"), cat("Fruit", "Apple")] }
+        ],
+        { recipeCategoriesToInclude: ["Entrees"] }
+      );
+      expect(menu.sides).toEqual([]);
+    });
+
+    it("returns null when the only content would be hidden meal-specific sides", () => {
+      const menu = parse(
+        [
+          { MenuMealName: "2-1 Elementary", RecipeCategories: [cat("Sides", "Chicken Sausage Patty")] },
+          { MenuMealName: "Sides for All Entrees", RecipeCategories: [cat("Milk", "Skim Milk")] }
+        ],
+        { mealSidesLimit: 0 }
+      );
+      expect(menu).toBeNull();
+    });
+
+    it("drops an alternative that formats to nothing", () => {
+      const menu = parse(
+        [
+          { MenuMealName: "2-1 Elementary", RecipeCategories: [cat("Entrees", "Chicken Sandwich")] },
+          { MenuMealName: "2-1 Choice 2", RecipeCategories: [cat("Sides", "String Cheese", "Crackers")] },
+          { MenuMealName: "Sides for All Entrees", RecipeCategories: [cat("Fruit", "Apple")] }
+        ],
+        { mealSidesLimit: 0 }
+      );
+      expect(menu.alternatives).toEqual([]);
+    });
+
+    it('uses "with sides of" (not ", plus") after an "over" entree in the sentence layout', () => {
+      const c = new TitanSchoolsClient({ ...config, debug: false });
+      const [, lunches] = c.extractMenusByDate(mockNamedMealsResponse);
+      expect(lunches.find((day) => day.date === "9/17/2026").menu.text).toBe(
+        "Mandarin Orange Chicken over Fluffy Brown Rice with sides of Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie. Or Yogurt Parfait with Granola Packet."
+      );
     });
   });
 

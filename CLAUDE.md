@@ -57,7 +57,7 @@ The module follows MagicMirror²'s standard architecture with three main compone
 
 **Multi-Instance Support**: The notification system uses a namespacing pattern `TITANSCHOOLS_{ACTION}::{instanceName}` where instanceName combines buildingId and districtId. This allows multiple module instances to coexist without interference.
 
-**Recipe Category Filtering**: `recipeCategoriesToInclude` (empty = all) and `recipeCategoriesToExclude` (default `["Milk"]`) filter API `RecipeCategories` by `CategoryName`, case-insensitively. See "Menu Parsing and Formatting" for how the remaining categories are laid out.
+**Recipe Category Filtering**: `recipeCategoriesToInclude` (empty = all) and `recipeCategoriesToExclude` (default `["Milk", "Condiment"]`) filter API `RecipeCategories` by `CategoryName`, case-insensitively. See "Menu Parsing and Formatting" for how the remaining categories are laid out.
 
 **Date Label Generation**: The `upcomingRelativeDates()` function generates human-friendly labels (Today, Tomorrow, or day of week) for the configured number of days to display.
 
@@ -74,8 +74,8 @@ The module follows MagicMirror²'s standard architecture with three main compone
 Since fall 2026 the API splits a day into several **named** MenuMeals, and the name carries the meaning. `classifyMenuMeal(name)` maps each to:
 
 - **main** — anything not matched below (e.g. `"2-1 Elementary"`, `"1-4 MS"`, or an unnamed meal in older responses)
-- **alternative** — `/choice 2|choice two|grab & go|box lunch|alternat/i` (e.g. `"2-1 Choice 2"`, `"2-3 Grab & Go 2"`)
-- **shared** — `/for all|all entrees|shared/i` (e.g. `"Sides for All Entrees"`)
+- **alternative** — `ALTERNATIVE_MEAL_PATTERN`: Choice 2–9/Two/Three/B–E, Grab & Go / Grab-N-Go, Box Lunch, Alternat… (e.g. `"2-1 Choice 2"`, `"2-3 Grab & Go 2"`). "Choice 1" is main.
+- **shared** — `SHARED_SIDES_MEAL_PATTERN`: "Sides for All", "for all entrees", "shared sides" (e.g. `"Sides for All Entrees"`). A "shared" meal that contains an Entrees category is re-classified as main.
 
 Within a meal, `categorizeRecipeCategory(categoryName)` maps each RecipeCategory to a role:
 
@@ -86,7 +86,7 @@ Within a meal, `categorizeRecipeCategory(categoryName)` maps each RecipeCategory
 - `alternative` — legacy: a single category describing a whole alternative meal ("Choice 2 - includes fruit, vegetable & milk", "Box Lunch")
 - `other` — everything else (Grain, Fruit, Vegetable, "Fruits & Vegetables", Milk, Dessert, Condiment); always treated as shared sides
 
-Rules: categories in a **shared** meal, `other` categories anywhere, and `sides` in the main meal *when the day has no shared meal* all go to `parsed.sharedSides`. Everything else attaches to its meal (`{ name, entrees, with, over, sides }`). Recipe names pass through `cleanRecipeName()` (strips leading `**` and trailing `-NEW!!` / `(NEW)` markers).
+Rules: categories in a **shared** meal, `other` categories in the **main** meal, and `sides` in the main meal *when the day has no shared meal* all go to `parsed.sharedSides`. Inside an **alternative** meal every non-entree category stays with that alternative (as its `sides`). Everything else attaches to its meal (`{ name, entrees, with, over, sides }`). After parsing: `with`/`over` are dropped from meals with no entrees (orphaned modifiers), content-less alternatives are removed, and if the main meal is empty the first alternative is promoted to main. Recipe names pass through `cleanRecipeName()` (strips leading `**` and trailing `-NEW!!` / `(NEW)` markers). Empty/missing `MenuMeals`, `RecipeCategories`, `Recipes` are tolerated (no old-shape `MenuMeals[0].RecipeCategories[0].Recipes[0]` guard).
 
 Result shape: `{ main: Meal, alternatives: Meal[], sharedSides: [{ categoryName, recipes }] }`.
 
@@ -96,12 +96,12 @@ Older data expressed accompaniments as recipe names starting with `"with "`, `"w
 
 ### Stage 2: Filtering
 
-- `recipeCategoriesToInclude` (default `[]` = all) and `recipeCategoriesToExclude` (default `["Milk"]`) are applied per category, case-insensitively, in `isCategoryIncluded()`. `with`/`over` categories always pass the include filter.
-- `hideEverydaySides` (default `false`): `removeEverydaySides()` drops shared sides that appear on every non-empty day of the fetched window (e.g. "Assorted Fruit Choices"). Runs per serving session before formatting.
+- `isCategoryIncluded(name, { allowModifiers })`: when `recipeCategoriesToInclude` is non-empty it alone decides (an explicit `"Milk"` beats the default exclude); otherwise anything not in `recipeCategoriesToExclude` (default `["Milk", "Condiment"]`) passes. Case-insensitive. `with`/`over` categories pass the include filter only inside main/alternative meals (`allowModifiers`), never in the shared meal.
+- `hideEverydaySides` (default `false`): `removeEverydaySides()` drops shared sides that appear on every non-empty day of the fetched window (e.g. "Assorted Fruit Choices"). Needs ≥ `MIN_DAYS_FOR_EVERYDAY_SIDES` (3) non-empty days, otherwise it's a no-op. Runs per serving session before formatting.
 
 ### Stage 3: Format — `formatParsedMenu(parsed)`
 
-Returns `null` when nothing is left to show, otherwise:
+Builds the object below, then returns `null` unless `mealHasContent(menu)` (main, alternatives, or sides non-empty) — the same predicate `processData` uses to skip empty days. Alternatives whose line formats to `""` are dropped.
 
 ```js
 {
@@ -114,7 +114,7 @@ Returns `null` when nothing is left to show, otherwise:
 
 `formatMealLine(meal, sidesLimit)`: entrees joined with `entreeJoiner` (or with "and" for legacy category-alternatives), then `over X`, then `with A, B, and more` where meal-specific sides are capped at `mealSidesLimit` (default 2; 0 hides them).
 
-`formatSentence(parsed)`: the legacy one-sentence form. Entrees (+with/over) then `with sides of` / `with a side of` (or `, plus sides of` when the entree already has "with" items) listing meal-specific **and** shared sides uncapped, then each alternative as `Or ...`, trailing period. `showCategoryLabels` swaps the prefixes for `Entrees:` / `Sides:`. `formatMenu(recipeCategories)` wraps a flat category list in one unnamed meal and returns this sentence (kept for tests/back-compat).
+`formatSentence(parsed)`: the legacy one-sentence form. Entrees (+with/over) then `with sides of` / `with a side of` (or `, plus sides of` when the entree already has "with" items — "over" alone keeps "with sides of") listing meal-specific **and** shared sides uncapped, then each alternative as `Or ...` (the first alternative gets no "Or" when there is no main text), trailing period. `showCategoryLabels` swaps the prefixes for `Entrees:` / `Sides:`. `formatMenu(recipeCategories)` wraps a flat category list in one unnamed meal and returns this sentence (kept for tests/back-compat).
 
 ### Frontend rendering (MMM-TitanSchoolMealMenu.js)
 
@@ -145,7 +145,7 @@ Optional but commonly customized:
   - If `bufferDays` = 0: Shows N consecutive calendar days (old behavior)
 - `bufferDays` (default: 7) - Number of extra days to fetch as buffer for filtering. Set to 0 to disable filtering and show consecutive days instead. Increase to 14-21 for extended holiday breaks.
 - `recipeCategoriesToInclude` (default: []) - Restrict to these categories; empty = all. "With"/"Over" always pass.
-- `recipeCategoriesToExclude` (default: ["Milk"]) - Hide these categories.
+- `recipeCategoriesToExclude` (default: ["Milk", "Condiment"]) - Hide these categories.
 - `updateIntervalMs` (default: 3600000) - How often to refresh data
 - `displayCurrentWeek` (default: false) - Start from beginning of week instead of today
 - `hideEmptyDays` / `hideEmptyMeals` (default: false) - Control visibility of days/meals without data. Note: When `bufferDays` > 0, empty days are already filtered at the data level, making `hideEmptyDays` redundant.

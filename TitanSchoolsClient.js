@@ -10,12 +10,17 @@ const BUFFER_DAYS = 7;
  * MenuMeal names (from the API) that hold a complete alternative meal,
  * e.g. "2-1 Choice 2", "2-3 Grab & Go 2", "Box Lunch"
  */
-const ALTERNATIVE_MEAL_PATTERN = /choice\s*(2|two)|grab\s*(&|and|n)?\s*go|box\s*lunch|alternat/i;
+const ALTERNATIVE_MEAL_PATTERN = /choice\s*(?:[2-9]|two|three|[b-e])\b|grab\W*(?:n|and)?\W*go|box\s*lunch|alternat/i;
 
 /**
  * MenuMeal names that hold sides shared by every entree, e.g. "Sides for All Entrees"
  */
-const SHARED_SIDES_MEAL_PATTERN = /for\s+all|all\s+entrees|shared/i;
+const SHARED_SIDES_MEAL_PATTERN = /sides?\s+for\s+all|for\s+all\s+(?:entrees|meals|choices)|all\s+entrees|shared\s+sides?/i;
+
+/**
+ * hideEverydaySides only kicks in once at least this many non-empty days were fetched
+ */
+const MIN_DAYS_FOR_EVERYDAY_SIDES = 3;
 
 /**
  * Menu-cycle prefixes that districts put in front of MenuMeal names, e.g. the "2-1 " in "2-1 Choice 2"
@@ -51,7 +56,7 @@ class TitanSchoolsClient {
     // Category filtering. An empty include list means "everything" (except the excluded categories).
     // Categories that modify an entree ("With", "Over") always ride along with the entree.
     this.recipeCategoriesToInclude = config.recipeCategoriesToInclude ?? [];
-    this.recipeCategoriesToExclude = config.recipeCategoriesToExclude ?? ["Milk"];
+    this.recipeCategoriesToExclude = config.recipeCategoriesToExclude ?? ["Milk", "Condiment"];
 
     // How many meal-specific sides (burger toppings, etc.) to attach to an entree before saying "and more".
     // 0 hides them entirely.
@@ -196,22 +201,11 @@ class TitanSchoolsClient {
         ? "breakfast"
         : "lunch";
 
-      const days = menuSession.MenuPlans[0].Days.map((menuForThisDate) => {
-        if (!menuForThisDate.MenuMeals[0]?.RecipeCategories[0]?.Recipes[0]) {
-          if (this.debug) {
-            console.debug(
-              `No meal data was found in the API response for ${menuForThisDate.Date}. Expected to find MenuMeals[].RecipeCategories[].Recipes, but got: ${menuForThisDate}`
-            );
-          }
-          return { date: menuForThisDate.Date, breakfastOrLunch, parsed: null };
-        }
-
-        return {
-          date: menuForThisDate.Date,
-          breakfastOrLunch,
-          parsed: this.parseMenuMeals(menuForThisDate.MenuMeals, `${breakfastOrLunch} menu for ${menuForThisDate.Date}`),
-        };
-      });
+      const days = (menuSession.MenuPlans?.[0]?.Days ?? []).map((menuForThisDate) => ({
+        date: menuForThisDate.Date,
+        breakfastOrLunch,
+        parsed: this.parseMenuMeals(menuForThisDate.MenuMeals, `${breakfastOrLunch} menu for ${menuForThisDate.Date}`),
+      }));
 
       if (this.hideEverydaySides) {
         this.removeEverydaySides(days);
@@ -266,7 +260,16 @@ class TitanSchoolsClient {
 
     (menuMeals ?? []).forEach((menuMeal) => {
       const mealName = menuMeal.MenuMealName ?? "";
-      const mealType = this.classifyMenuMeal(mealName);
+      const recipeCategories = menuMeal.RecipeCategories ?? [];
+      let mealType = this.classifyMenuMeal(mealName);
+
+      // A "shared sides" meal that has its own entrees isn't shared sides after all (e.g. "Lunch for All Grades")
+      if (
+        mealType === "shared" &&
+        recipeCategories.some((recipeCategory) => this.categorizeRecipeCategory(recipeCategory.CategoryName) === "entrees")
+      ) {
+        mealType = "main";
+      }
 
       let target = parsed.main;
       if (mealType === "alternative") {
@@ -274,12 +277,13 @@ class TitanSchoolsClient {
         parsed.alternatives.push(target);
       }
 
-      (menuMeal.RecipeCategories ?? []).forEach((recipeCategory) => {
+      recipeCategories.forEach((recipeCategory) => {
         const categoryName = recipeCategory.CategoryName ?? "";
         if (!categoriesToLog.all.includes(categoryName)) {
           categoriesToLog.all.push(categoryName);
         }
-        if (!this.isCategoryIncluded(categoryName)) {
+        // "With"/"Over" only ride along with an entree, so they only bypass the include filter inside a real meal
+        if (!this.isCategoryIncluded(categoryName, { allowModifiers: mealType !== "shared" })) {
           if (!categoriesToLog.filteredOut.includes(categoryName)) {
             categoriesToLog.filteredOut.push(categoryName);
           }
@@ -297,9 +301,12 @@ class TitanSchoolsClient {
 
         const categoryType = this.categorizeRecipeCategory(categoryName);
 
+        // Sides shared by the whole day: anything in a shared meal, "other" categories (Grain, Fruit, ...) in the
+        // main meal, and the main meal's "Sides" when the district doesn't split shared sides out. Inside an
+        // alternative meal every non-entree category belongs to that alternative.
         const isSharedSide =
           mealType === "shared" ||
-          categoryType === "other" ||
+          (categoryType === "other" && mealType === "main") ||
           (categoryType === "sides" && mealType === "main" && !hasSharedSidesMeal);
 
         if (isSharedSide) {
@@ -312,12 +319,26 @@ class TitanSchoolsClient {
             entreesAreOneMeal: true,
           });
         } else {
-          target[categoryType].push(...recipes);
+          const bucket = categoryType === "other" ? "sides" : categoryType;
+          target[bucket].push(...recipes);
         }
       });
     });
 
+    // "With"/"Over" items describe an entree; without one (e.g. entrees filtered out) they mean nothing
+    [parsed.main, ...parsed.alternatives].forEach((meal) => {
+      if (meal.entrees.length === 0) {
+        meal.with = [];
+        meal.over = [];
+      }
+    });
+
     parsed.alternatives = parsed.alternatives.filter((meal) => this.mealHasItems(meal));
+
+    // If nothing was recognized as the main meal, the first alternative is effectively the meal
+    if (!this.mealHasItems(parsed.main) && parsed.alternatives.length > 0) {
+      parsed.main = parsed.alternatives.shift();
+    }
 
     if (this.debug) {
       let message = `The ${logLabel} contains the following categories: ${categoriesToLog.all.join(", ")}`;
@@ -351,9 +372,7 @@ class TitanSchoolsClient {
    * True when a formatted meal (as sent to the frontend) has something to display
    */
   mealHasContent(menu) {
-    if (!menu) return false;
-    if (typeof menu === "string") return menu.trim().length > 0;
-    return !!menu.main || menu.alternatives.length > 0 || menu.sides.length > 0;
+    return !!menu && (!!menu.main || menu.alternatives.length > 0 || menu.sides.length > 0);
   }
 
   /**
@@ -388,21 +407,23 @@ class TitanSchoolsClient {
 
   /**
    * Applies recipeCategoriesToInclude / recipeCategoriesToExclude (case-insensitive).
-   * "With"/"Over" categories are modifiers of the entree and are always kept unless explicitly excluded.
+   * When an include list is given it alone decides (so listing "Milk" beats the default exclude);
+   * otherwise everything not excluded passes. "With"/"Over" categories modify an entree and pass the
+   * include filter whenever `allowModifiers` is set (i.e. inside a main or alternative meal).
    */
-  isCategoryIncluded(categoryName) {
+  isCategoryIncluded(categoryName, { allowModifiers = true } = {}) {
     const lowerName = categoryName.toLowerCase();
-    if (this.recipeCategoriesToExclude.some((c) => c.toLowerCase() === lowerName)) {
-      return false;
+    const listed = (list) => list.some((c) => c.toLowerCase() === lowerName);
+
+    if (this.recipeCategoriesToInclude.length > 0) {
+      if (listed(this.recipeCategoriesToInclude)) {
+        return true;
+      }
+      const type = this.categorizeRecipeCategory(categoryName);
+      return allowModifiers && (type === "with" || type === "over") && !listed(this.recipeCategoriesToExclude);
     }
-    if (this.recipeCategoriesToInclude.length === 0) {
-      return true;
-    }
-    const type = this.categorizeRecipeCategory(categoryName);
-    if (type === "with" || type === "over") {
-      return true;
-    }
-    return this.recipeCategoriesToInclude.some((c) => c.toLowerCase() === lowerName);
+
+    return !listed(this.recipeCategoriesToExclude);
   }
 
   /**
@@ -413,7 +434,8 @@ class TitanSchoolsClient {
    */
   removeEverydaySides(days) {
     const daysWithContent = days.filter((day) => this.parsedHasContent(day.parsed));
-    if (daysWithContent.length < 2) {
+    // With fewer days than this, "every day" says more about the window than about the side
+    if (daysWithContent.length < MIN_DAYS_FOR_EVERYDAY_SIDES) {
       return;
     }
 
@@ -510,11 +532,8 @@ class TitanSchoolsClient {
   categorizeRecipeCategory(categoryName) {
     const lowerName = (categoryName ?? "").toLowerCase().trim();
 
-    // Check for alternative meal options (Box Lunch, Choice 2, etc.)
-    if (lowerName.includes('box lunch') ||
-        lowerName.includes('choice 2') ||
-        lowerName.includes('choice two') ||
-        lowerName.includes('includes fruit')) {
+    // Check for alternative meal options (Box Lunch, Choice 2, Grab & Go, etc.)
+    if (ALTERNATIVE_MEAL_PATTERN.test(lowerName) || lowerName.includes('includes fruit')) {
       return 'alternative';
     }
 
@@ -596,19 +615,23 @@ class TitanSchoolsClient {
    * or `null` when there is nothing to show.
    */
   formatParsedMenu(parsed) {
-    if (!this.parsedHasContent(parsed)) {
+    if (!parsed) {
       return null;
     }
 
-    return {
+    const menu = {
       main: this.formatMealLine(parsed.main),
-      alternatives: parsed.alternatives.map((meal) => ({
-        label: this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name)),
-        text: this.formatMealLine(meal),
-      })),
+      alternatives: parsed.alternatives
+        .map((meal) => ({
+          label: this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name)),
+          text: this.formatMealLine(meal),
+        }))
+        .filter((alternative) => alternative.text.length > 0),
       sides: parsed.sharedSides.flatMap((group) => group.recipes),
       text: this.formatSentence(parsed),
     };
+
+    return this.mealHasContent(menu) ? menu : null;
   }
 
   /**
@@ -618,7 +641,7 @@ class TitanSchoolsClient {
   formatSentence(parsed) {
     // Entrees (plus anything served with/over them). Meal-specific sides are folded into the sides list below.
     const entreesText = this.formatMealLine({ ...parsed.main, sides: [] }, 0);
-    const entreesHaveAccompaniments = parsed.main.with.length + parsed.main.over.length > 0;
+    const entreesHaveWithItems = parsed.main.with.length > 0;
 
     let mainText = "";
     if (entreesText) {
@@ -637,7 +660,7 @@ class TitanSchoolsClient {
         mainText = `${mainText} Sides: ${sidesList}`.trim();
       } else if (!entreesText) {
         mainText = sidesList;
-      } else if (entreesHaveAccompaniments) {
+      } else if (entreesHaveWithItems) {
         // "Tortellini with Marinara Sauce, plus sides of ..." reads better than "with ... with sides of ..."
         mainText = `${mainText}, plus ${sideNoun} ${sidesList}`;
       } else {
@@ -645,14 +668,19 @@ class TitanSchoolsClient {
       }
     }
 
-    const alternativeParts = parsed.alternatives.map((meal) => {
+    const alternativeParts = parsed.alternatives.map((meal, index) => {
       const itemsText = this.formatMealLine(meal, Infinity);
-      // No label - just show the items with "Or" prefix. Otherwise use the configured label,
-      // replacing the {categoryName} placeholder if present
-      const label = this.alternativeLabel === ""
-        ? "Or"
-        : this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name));
-      return `${label} ${itemsText}`;
+      // No label - just show the items with "Or" prefix (except for the very first sentence). Otherwise use the
+      // configured label, replacing the {categoryName} placeholder if present
+      let label;
+      if (this.alternativeLabel !== "") {
+        label = this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name));
+      } else if (mainText || index > 0) {
+        label = "Or";
+      } else {
+        label = "";
+      }
+      return `${label} ${itemsText}`.trim();
     });
 
     // Main meal (entrees + sides) first, then each alternative as its own sentence
