@@ -94,9 +94,10 @@ These are the possible options:
 | `weekStartsOnMonday`            | <p>Show Monday as the first day of the week. Set to `true` to show Monday as the first day of the week.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
 | `hideEmptyDays`                 | <p>Hide days without any meals.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`<br>**Note:** When `bufferDays` > 0, empty days are already filtered out at the data level. This option is primarily useful when `bufferDays` is set to 0.</p>|
 | `hideEmptyMeals`                | <p>Hide meals that are empty.</p><p>**Type:** `boolean`<br>**Default value:** `false`<br>**Possible values:** `true` and `false`|
-| `layout`                        | <p>How each meal is displayed.</p><p>**Type:** `string`<br>**Default value:** `"lines"`<br>**Possible values:** `"lines"` shows the main entree on its own line, each alternative meal on a dimmed "or ..." line, and the shared sides on a smaller dimmed line. `"sentence"` shows everything as one natural-language sentence (the pre-0.6 look).</p>|
+| `layout`                        | <p>How each meal is displayed.</p><p>**Type:** `string`<br>**Default value:** `"lines"`<br>**Possible values:** `"lines"` shows the main entree on its own line, each alternative meal on an "or ..." line, and the shared sides on a lighter line labelled with `sidesLabel`. `"sentence"` shows everything as one natural-language sentence (the pre-0.6 look).</p>|
 | `showAlternatives`              | <p>Show alternative meals (Choice 2, Grab & Go, Box Lunch) in the `lines` layout.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
 | `showSides`                     | <p>Show the sides shared by every entree (fruit, vegetables, dessert) in the `lines` layout.</p><p>**Type:** `boolean`<br>**Default value:** `true`</p>|
+| `sidesLabel`                    | <p>Label in front of the shared-sides line in the `lines` layout. Set to `""` for no label.</p><p>**Type:** `string`<br>**Default value:** `"Sides:"`</p>|
 | `mealSidesLimit`                | <p>How many meal-specific sides (burger toppings, taco fixings, ...) to attach to an entree in the `lines` layout before saying "and more". Set to `0` to hide them.</p><p>**Type:** `integer`<br>**Default value:** `2`<br>**Example:** `"Build-Your-Own Burger with Fresh Burger Fixings, American Cheese Slice, and more"`</p>|
 | `hideEverydaySides`             | <p>Hide shared sides that show up on every fetched day (e.g. "Assorted Fruit Choices", "Fresh Veggies"), leaving only the sides that change from day to day. Only applies once at least 3 days with menus were fetched, so keep `bufferDays` at its default or higher.</p><p>**Type:** `boolean`<br>**Default value:** `false`</p>|
 | `recipeCategoriesToInclude`     | <p>An array of recipe categories to display. Leave empty to display all categories.</p><p>**Type:** `array`<br>**Example:** `[ "Entrees", "Grain", "Fruit", "Vegetable" ]`<br>**Default value:** `[]` (all categories)</p><p>**Note:** Matching is case-insensitive. When this list is set it alone decides what is shown (so listing `"Milk"` here overrides the default `recipeCategoriesToExclude`), and the "With"/"Over" categories that modify an entree are kept along with it.</p><p>**Note 2:** Your district might not use the categories in this module. You will need to find the categories by visiting the website.</p>|
@@ -117,12 +118,14 @@ The LinqConnect API describes each day as a set of *meals*, each with several *r
 Monday
   Mandarin Orange Chicken over Fluffy Brown Rice                  ← main meal ("2-4 Elementary")
   or Yogurt Parfait with Granola Packet                           ← alternative meal ("2-4 Choice 2", "Grab & Go", "Box Lunch")
-  Steamed Broccoli · Fresh Veggies · Fortune Cookie               ← shared sides ("Sides for All Entrees")
+  Sides: Steamed Broccoli · Fresh Veggies · Fortune Cookie        ← shared sides ("Sides for All Entrees")
 ```
 
 Within a meal, `Entrees` are joined with `entreeJoiner`, `Over`/`With` categories are attached to the entree ("over Fluffy Brown Rice", "with Granola Packet"), and a `Sides` category is attached with up to `mealSidesLimit` items. Recipe names that themselves start with "with", "w/" or "over" are folded into the preceding item ("Mixed Greens Salad (with Dressing)"). Leading asterisks and trailing "-NEW!!" markers are removed.
 
 Older API responses with a single unnamed meal per day are still supported: its entrees become the main meal and the remaining categories become the shared sides.
+
+**Tip for busy screens:** `hideEverydaySides: true` removes sides that appear every single day (fruit, veggies, milk), which is usually what makes the sides line wrap; `showAlternatives: false` drops the "or …" line entirely.
 
 **Upgrading from 0.5:** `recipeCategoriesToInclude` used to default to `["Entrees", "Grain"]` and now defaults to `[]` (everything except `recipeCategoriesToExclude`). If you preferred the old, shorter output, set `recipeCategoriesToInclude: ["Entrees", "Grain"]` explicitly, or use `showSides: false`.
 
