@@ -27,3 +27,17 @@
   display: block;
   padding-left: 1em;
 }
+
+/* "lines" layout: entree first, then alternatives and shared sides de-emphasized */
+.MMM-TitanSchoolMealMenu .meal-main {
+  font-weight: 400;
+}
+
+.MMM-TitanSchoolMealMenu .meal-alternative {
+  font-weight: 300;
+}
+
+.MMM-TitanSchoolMealMenu .meal-sides {
+  font-weight: 300;
+  font-size: 0.85em;
+}

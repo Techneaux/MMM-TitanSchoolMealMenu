@@ -61,14 +61,8 @@ module.exports = NodeHelper.create({
       if (payload.debug) {
         console.log(payload);
       }
-      self.titanSchoolsClients[payload.instanceName] = new TitanSchoolsClient({
-        buildingId: payload.buildingId,
-        districtId: payload.districtId,
-        recipeCategoriesToInclude: payload.recipeCategoriesToInclude,
-        numberOfDaysToDisplay: payload.numberOfDaysToDisplay,
-        bufferDays: payload.bufferDays,
-        debug: payload.debug,
-      });
+      // The client picks the options it understands (ids, day counts, category filters, formatting options)
+      self.titanSchoolsClients[payload.instanceName] = new TitanSchoolsClient(payload);
       this.config = payload;
       this.sendSocketNotification(
         `TITANSCHOOLS_CLIENT_READY::${payload.instanceName}`

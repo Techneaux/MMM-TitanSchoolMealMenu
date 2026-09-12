@@ -7,6 +7,27 @@ const axios = require("axios").default;
 const BUFFER_DAYS = 7;
 
 /**
+ * MenuMeal names (from the API) that hold a complete alternative meal,
+ * e.g. "2-1 Choice 2", "2-3 Grab & Go 2", "Box Lunch"
+ */
+const ALTERNATIVE_MEAL_PATTERN = /choice\s*(?:[2-9]|two|three|[b-e])\b|grab\W*(?:n|and)?\W*go|box\s*lunch|alternat/i;
+
+/**
+ * MenuMeal names that hold sides shared by every entree, e.g. "Sides for All Entrees"
+ */
+const SHARED_SIDES_MEAL_PATTERN = /sides?\s+for\s+all|for\s+all\s+(?:entrees|meals|choices)|all\s+entrees|shared\s+sides?/i;
+
+/**
+ * hideEverydaySides only kicks in once at least this many non-empty days were fetched
+ */
+const MIN_DAYS_FOR_EVERYDAY_SIDES = 3;
+
+/**
+ * Menu-cycle prefixes that districts put in front of MenuMeal names, e.g. the "2-1 " in "2-1 Choice 2"
+ */
+const MEAL_NAME_CYCLE_PREFIX = /^\d+\s*-\s*\d+\s+/;
+
+/**
  * A _very_ lightweight client for the TitanSchools API.
  */
 class TitanSchoolsClient {
@@ -31,16 +52,18 @@ class TitanSchoolsClient {
 
     this.numberOfDaysToDisplay = config.numberOfDaysToDisplay;
     this.bufferDays = config.bufferDays ?? BUFFER_DAYS;
-    this.recipeCategoriesToInclude = config.recipeCategoriesToInclude ?? [
-      "Main Entree", // Maybe deprecated?
-      "Entrees",
-      "Grain",
-      // , "Fruit"
-      // , "Vegetable"
-      // , "Milk"
-      // , "Condiment"
-      // , "Extra"
-    ];
+
+    // Category filtering. An empty include list means "everything" (except the excluded categories).
+    // Categories that modify an entree ("With", "Over") always ride along with the entree.
+    this.recipeCategoriesToInclude = config.recipeCategoriesToInclude ?? [];
+    this.recipeCategoriesToExclude = config.recipeCategoriesToExclude ?? ["Milk", "Condiment"];
+
+    // How many meal-specific sides (burger toppings, etc.) to attach to an entree before saying "and more".
+    // 0 hides them entirely.
+    this.mealSidesLimit = config.mealSidesLimit ?? 2;
+
+    // Drop shared sides that show up on every fetched day (e.g. "Assorted Fruit Choices"), since they carry no information.
+    this.hideEverydaySides = config.hideEverydaySides ?? false;
 
     // Formatting options for menu display
     this.entreeJoiner = config.entreeJoiner ?? " or ";
@@ -70,32 +93,25 @@ class TitanSchoolsClient {
    * @param Date endDate A Date object that specifies which day the menu should end on
    * @throws Error If the TitanSchools API responds with a 400- or 500-level HTTP status
    *
-   * @returns An array of meals shaped like this (starting on {startDate} and including {config.numberOfDaysToDisplay} days):
+   * @returns An array of days shaped like this (starting on {startDate} and including {config.numberOfDaysToDisplay} days).
+   * A meal is `null` when there is nothing to show for it.
    * [
-   *   { "date": "9-6-2021", "label": "Today" },
+   *   { "date": "9-6-2021", "label": "Today", "breakfast": null, "lunch": null },
    *   {
    *     "date": "9-7-2021",
    *     "label": "Tomorrow",
-   *     "breakfast": "SCRAMBLED EGGS & FRENCH TOAST, APPLE,MIXED FRUIT,JUICE, APPLE 4 OZ.,JUICE, GRAPE 4 OZ.,JUICE, ORANGE 4 OZ., MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP",
-   *     "lunch": "STUFFED CHEESE BREADSTICK, COOKIE VARIETY, MARINARA CUP,CARROTS- INDV PACKS, PEACHES SLICED, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP, RANCH CUP"
-   *   },
-   *   {
-   *     "date": "9-8-2021",
-   *     "label": "Wednesday",
-   *     "breakfast": "CEREAL LUCKY CHARMS GF, CEREAL, CINNAMON TOAST, JUICE, APPLE 4 OZ.,JUICE, GRAPE 4 OZ.,JUICE, ORANGE 4 OZ.,MIXED FRUIT,APPLE, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP",
-   *     "lunch": "CHICKEN SANDWICH, BEANS VEGETARIAN, PEARS SLICED, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP, KETCHUP PACKET,RANCH CUP, LETTUCE & PICKLE CUP"
-   *   },
-   *   {
-   *     "date": "9-9-2021",
-   *     "label": "Thursday",
-   *     "breakfast": "CHERRY FRUDEL, JUICE, APPLE 4 OZ.,JUICE, GRAPE 4 OZ.,JUICE, ORANGE 4 OZ.,MIXED FRUIT,APPLE, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP",
-   *     "lunch": "ORANGE CHICKEN, BROWN RICE, GREEN BEANS, APPLE, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP"
-   *   },
-   *   {
-   *     "date": "9-10-2021",
-   *     "label": "Friday",
-   *     "breakfast": "POP TART, CINNAMON,POP TART, STRAWBERRY, JUICE, APPLE 4 OZ.,JUICE, GRAPE 4 OZ.,JUICE, ORANGE 4 OZ.,PEACHES SLICED, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP",
-   *     "lunch": "HAMBURGER, GARDEN SALAD, PEACH CUP ZEE ZEE, MILK CHOCOLATE FF CARTON HP,MILK WHITE 1% CARTON HP, KETCHUP PACKET,MUSTARD PACKET,RANCH CUP, LETTUCE & PICKLE CUP"
+   *     "breakfast": {
+   *       "main": "Banana Muffin or Maple Waffle Snaps",
+   *       "alternatives": [],
+   *       "sides": ["Breakfast Protein Item", "Assorted Fruit Choices"],
+   *       "text": "Banana Muffin or Maple Waffle Snaps with sides of Breakfast Protein Item and Assorted Fruit Choices."
+   *     },
+   *     "lunch": {
+   *       "main": "Mandarin Orange Chicken over Fluffy Brown Rice",
+   *       "alternatives": [{ "label": "", "text": "Yogurt Parfait with Granola Packet" }],
+   *       "sides": ["Steamed Broccoli", "Fresh Veggies", "Assorted Fruit Choices", "Fortune Cookie"],
+   *       "text": "Mandarin Orange Chicken over Fluffy Brown Rice with sides of Steamed Broccoli, Fresh Veggies, Assorted Fruit Choices, and Fortune Cookie. Or Yogurt Parfait with Granola Packet."
+   *     }
    *   }
    * ]
    */
@@ -162,6 +178,8 @@ class TitanSchoolsClient {
    * API changes and output normalized data that the rest of the functions can assume to be correct.
    *
    * @param Object apiResponse The response body from the TitanSchools API.
+   * @returns Array One array per serving session (breakfast, lunch), each holding
+   *   `{ date, breakfastOrLunch, menu }` per day, where `menu` is the object described on fetchMenu() or `null`.
    */
   extractMenusByDate(apiResponse) {
     if (!Object.hasOwnProperty.call(apiResponse, "FamilyMenuSessions")) {
@@ -183,74 +201,22 @@ class TitanSchoolsClient {
         ? "breakfast"
         : "lunch";
 
-      const menusByDate = menuSession.MenuPlans[0].Days.map(
-        (menuForThisDate) => {
-          // Just for logging/troubleshooting, keep track of all the recipes in this menu and note which ones get
-          // intentionally filtered out.
-          const recipesToLog = {
-            all: [],
-            filteredOut: [],
-          };
+      const days = (menuSession.MenuPlans?.[0]?.Days ?? []).map((menuForThisDate) => ({
+        date: menuForThisDate.Date,
+        breakfastOrLunch,
+        parsed: this.parseMenuMeals(menuForThisDate.MenuMeals, `${breakfastOrLunch} menu for ${menuForThisDate.Date}`),
+      }));
 
-          if (!menuForThisDate.MenuMeals[0]?.RecipeCategories[0]?.Recipes[0]) {
-            if (this.debug) {
-              console.debug(
-                `No meal data was found in the API response for ${menuForThisDate.Date}. Expected to find MenuMeals[].RecipeCategories[].Recipes, but got: ${menuForThisDate}`
-              );
-            }
-            return [];
-          }
+      if (this.hideEverydaySides) {
+        this.removeEverydaySides(days);
+      }
 
-          const recipeCategories = menuForThisDate.MenuMeals.map((mealLine) => {
-            return mealLine.RecipeCategories.filter((recipeCategory) => {
-              if (!recipesToLog.all.includes(recipeCategory.CategoryName)) {
-                recipesToLog.all.push(recipeCategory.CategoryName);
-              }
-
-              if (this.recipeCategoriesToInclude.length === 0
-                || this.recipeCategoriesToInclude.includes(
-                  recipeCategory.CategoryName
-                )
-              ) {
-                return true;
-              } else {
-                if (
-                  !recipesToLog.filteredOut.includes(
-                    recipeCategory.CategoryName
-                  )
-                ) {
-                  recipesToLog.filteredOut.push(recipeCategory.CategoryName);
-                }
-                return false;
-              }
-            });
-          }, this).flat();
-
-          if (this.debug) {
-            let message = `The ${breakfastOrLunch} menu for ${
-              menuForThisDate.Date
-            } contains the following categories: ${recipesToLog.all.join(
-              ", "
-            )}`;
-            if (recipesToLog.filteredOut.length > 0) {
-              message += `, but ${recipesToLog.filteredOut.join(
-                ", "
-              )} were filtered out because they're not included in the config.recipeCategoriesToInclude array.`;
-            }
-            console.debug(message);
-          }
-
-          return {
-            date: menuForThisDate.Date,
-            breakfastOrLunch,
-            menu: this.formatMenu(recipeCategories),
-          };
-        },
-        this
-      );
-
-      return menusByDate;
-    }, this);
+      return days.map(({ date, parsed }) => ({
+        date,
+        breakfastOrLunch,
+        menu: this.formatParsedMenu(parsed),
+      }));
+    });
 
     if (this.debug) {
       console.debug(
@@ -261,6 +227,234 @@ class TitanSchoolsClient {
     }
 
     return menus;
+  }
+
+  /**
+   * Parses one day's MenuMeals[] into a structured menu.
+   *
+   * The API groups a day into several MenuMeals whose *names* carry the meaning:
+   *   "2-1 Elementary"        → the main meal (Entrees, plus With/Over/Sides categories that belong to the entree)
+   *   "2-1 Choice 2"          → an alternative complete meal (also "Grab & Go", "Box Lunch")
+   *   "Sides for All Entrees" → sides shared by every choice (Fruits & Vegetables, Milk, Dessert)
+   * Older responses have a single unnamed MenuMeal, which is treated as the main meal.
+   *
+   * @param {Array} menuMeals - MenuMeals[] for one day
+   * @param {string} logLabel - Used in debug logs only
+   * @returns {{ main: Object, alternatives: Array, sharedSides: Array }}
+   */
+  parseMenuMeals(menuMeals, logLabel = "menu") {
+    const parsed = {
+      main: this.emptyMeal(""),
+      alternatives: [],
+      sharedSides: [], // [{ categoryName, recipes: [] }]
+    };
+    // Just for logging/troubleshooting, keep track of all the categories in this menu and note which ones get
+    // intentionally filtered out.
+    const categoriesToLog = { all: [], filteredOut: [] };
+
+    // When the district splits shared sides into their own MenuMeal, a "Sides" category inside the main meal is
+    // specific to that entree (burger toppings, etc.). Without that split, "Sides" are the sides for the whole day.
+    const hasSharedSidesMeal = (menuMeals ?? []).some(
+      (menuMeal) => this.classifyMenuMeal(menuMeal.MenuMealName) === "shared"
+    );
+
+    (menuMeals ?? []).forEach((menuMeal) => {
+      const mealName = menuMeal.MenuMealName ?? "";
+      const recipeCategories = menuMeal.RecipeCategories ?? [];
+      let mealType = this.classifyMenuMeal(mealName);
+
+      // A "shared sides" meal that has its own entrees isn't shared sides after all (e.g. "Lunch for All Grades")
+      if (
+        mealType === "shared" &&
+        recipeCategories.some((recipeCategory) => this.categorizeRecipeCategory(recipeCategory.CategoryName) === "entrees")
+      ) {
+        mealType = "main";
+      }
+
+      let target = parsed.main;
+      if (mealType === "alternative") {
+        target = this.emptyMeal(mealName);
+        parsed.alternatives.push(target);
+      }
+
+      recipeCategories.forEach((recipeCategory) => {
+        const categoryName = recipeCategory.CategoryName ?? "";
+        if (!categoriesToLog.all.includes(categoryName)) {
+          categoriesToLog.all.push(categoryName);
+        }
+        // "With"/"Over" only ride along with an entree, so they only bypass the include filter inside a real meal
+        if (!this.isCategoryIncluded(categoryName, { allowModifiers: mealType !== "shared" })) {
+          if (!categoriesToLog.filteredOut.includes(categoryName)) {
+            categoriesToLog.filteredOut.push(categoryName);
+          }
+          return;
+        }
+
+        const recipes = this.mergeWithItems(
+          (recipeCategory.Recipes ?? [])
+            .map((recipe) => this.cleanRecipeName(recipe.RecipeName))
+            .filter((name) => name.length > 0)
+        );
+        if (recipes.length === 0) {
+          return;
+        }
+
+        const categoryType = this.categorizeRecipeCategory(categoryName);
+
+        // Sides shared by the whole day: anything in a shared meal, "other" categories (Grain, Fruit, ...) in the
+        // main meal, and the main meal's "Sides" when the district doesn't split shared sides out. Inside an
+        // alternative meal every non-entree category belongs to that alternative.
+        const isSharedSide =
+          mealType === "shared" ||
+          (categoryType === "other" && mealType === "main") ||
+          (categoryType === "sides" && mealType === "main" && !hasSharedSidesMeal);
+
+        if (isSharedSide) {
+          parsed.sharedSides.push({ categoryName, recipes });
+        } else if (categoryType === "alternative") {
+          // Older data: a single category (e.g. "Choice 2 - includes fruit, vegetable & milk") lists a whole alternative meal
+          parsed.alternatives.push({
+            ...this.emptyMeal(categoryName),
+            entrees: recipes,
+            entreesAreOneMeal: true,
+          });
+        } else {
+          const bucket = categoryType === "other" ? "sides" : categoryType;
+          target[bucket].push(...recipes);
+        }
+      });
+    });
+
+    // "With"/"Over" items describe an entree; without one (e.g. entrees filtered out) they mean nothing
+    [parsed.main, ...parsed.alternatives].forEach((meal) => {
+      if (meal.entrees.length === 0) {
+        meal.with = [];
+        meal.over = [];
+      }
+    });
+
+    parsed.alternatives = parsed.alternatives.filter((meal) => this.mealHasItems(meal));
+
+    // If nothing was recognized as the main meal, the first alternative is effectively the meal
+    if (!this.mealHasItems(parsed.main) && parsed.alternatives.length > 0) {
+      parsed.main = parsed.alternatives.shift();
+    }
+
+    if (this.debug) {
+      let message = `The ${logLabel} contains the following categories: ${categoriesToLog.all.join(", ")}`;
+      if (categoriesToLog.filteredOut.length > 0) {
+        message += `, but ${categoriesToLog.filteredOut.join(", ")} were filtered out by recipeCategoriesToInclude/recipeCategoriesToExclude.`;
+      }
+      console.debug(message);
+    }
+
+    return parsed;
+  }
+
+  emptyMeal(name) {
+    return { name, entrees: [], with: [], over: [], sides: [] };
+  }
+
+  mealHasItems(meal) {
+    return meal.entrees.length + meal.with.length + meal.over.length + meal.sides.length > 0;
+  }
+
+  parsedHasContent(parsed) {
+    return (
+      !!parsed &&
+      (this.mealHasItems(parsed.main) ||
+        parsed.alternatives.length > 0 ||
+        parsed.sharedSides.length > 0)
+    );
+  }
+
+  /**
+   * True when a formatted meal (as sent to the frontend) has something to display
+   */
+  mealHasContent(menu) {
+    return !!menu && (!!menu.main || menu.alternatives.length > 0 || menu.sides.length > 0);
+  }
+
+  /**
+   * @param {string} menuMealName - MenuMeal.MenuMealName from the API
+   * @returns {string} One of: 'main', 'alternative', 'shared'
+   */
+  classifyMenuMeal(menuMealName) {
+    const name = (menuMealName ?? "").trim();
+    if (SHARED_SIDES_MEAL_PATTERN.test(name)) return "shared";
+    if (ALTERNATIVE_MEAL_PATTERN.test(name)) return "alternative";
+    return "main";
+  }
+
+  /**
+   * The MenuMeal name without the district's menu-cycle prefix ("2-1 Choice 2" → "Choice 2")
+   */
+  displayMealName(menuMealName) {
+    return (menuMealName ?? "").replace(MEAL_NAME_CYCLE_PREFIX, "").trim();
+  }
+
+  /**
+   * Strips data-entry noise from a recipe name: leading asterisks ("**Hot Breakfast Entree"),
+   * trailing "-NEW!!" / "(NEW)" markers, and stray whitespace.
+   */
+  cleanRecipeName(recipeName) {
+    return String(recipeName ?? "")
+      .replace(/^[\s*]+/, "")
+      .replace(/\s*(?:[-–]\s*new!*|\(\s*new!*\s*\)|new!+)\s*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /**
+   * Applies recipeCategoriesToInclude / recipeCategoriesToExclude (case-insensitive).
+   * When an include list is given it alone decides (so listing "Milk" beats the default exclude);
+   * otherwise everything not excluded passes. "With"/"Over" categories modify an entree and pass the
+   * include filter whenever `allowModifiers` is set (i.e. inside a main or alternative meal).
+   */
+  isCategoryIncluded(categoryName, { allowModifiers = true } = {}) {
+    const lowerName = categoryName.toLowerCase();
+    const listed = (list) => list.some((c) => c.toLowerCase() === lowerName);
+
+    if (this.recipeCategoriesToInclude.length > 0) {
+      if (listed(this.recipeCategoriesToInclude)) {
+        return true;
+      }
+      const type = this.categorizeRecipeCategory(categoryName);
+      return allowModifiers && (type === "with" || type === "over") && !listed(this.recipeCategoriesToExclude);
+    }
+
+    return !listed(this.recipeCategoriesToExclude);
+  }
+
+  /**
+   * Removes shared sides that appear on every non-empty day of the fetched window (e.g. "Assorted Fruit Choices",
+   * "Fresh Veggies"). Mutates the `parsed` objects in place.
+   *
+   * @param {Array} days - [{ parsed }] for one serving session
+   */
+  removeEverydaySides(days) {
+    const daysWithContent = days.filter((day) => this.parsedHasContent(day.parsed));
+    // With fewer days than this, "every day" says more about the window than about the side
+    if (daysWithContent.length < MIN_DAYS_FOR_EVERYDAY_SIDES) {
+      return;
+    }
+
+    const counts = {};
+    daysWithContent.forEach((day) => {
+      const names = new Set(day.parsed.sharedSides.flatMap((group) => group.recipes));
+      names.forEach((name) => {
+        counts[name] = (counts[name] ?? 0) + 1;
+      });
+    });
+
+    daysWithContent.forEach((day) => {
+      day.parsed.sharedSides = day.parsed.sharedSides
+        .map((group) => ({
+          ...group,
+          recipes: group.recipes.filter((name) => counts[name] < daysWithContent.length),
+        }))
+        .filter((group) => group.recipes.length > 0);
+    });
   }
 
   /**
@@ -325,19 +519,30 @@ class TitanSchoolsClient {
   }
 
   /**
-   * Categorizes a recipe category name into one of: entrees, sides, or alternative
+   * Categorizes a recipe category name by its role in the meal
    * @param {string} categoryName - The RecipeCategory.CategoryName from the API
-   * @returns {string} - One of: 'entrees', 'sides', 'alternative'
+   * @returns {string} - One of:
+   *   'entrees'     - the main choices ("Entrees", "Main Entree")
+   *   'with'        - items served with the entree ("With")
+   *   'over'        - what the entree is served over ("Over")
+   *   'sides'       - sides specific to this meal ("Sides")
+   *   'alternative' - an alternative complete meal described as a category ("Choice 2 - includes fruit...", "Box Lunch")
+   *   'other'       - everything else, treated as sides shared by the whole menu ("Grain", "Fruit", "Fruits & Vegetables", "Milk", "Dessert")
    */
   categorizeRecipeCategory(categoryName) {
-    const lowerName = categoryName.toLowerCase();
+    const lowerName = (categoryName ?? "").toLowerCase().trim();
 
-    // Check for alternative meal options (Box Lunch, Choice 2, etc.)
-    if (lowerName.includes('box lunch') ||
-        lowerName.includes('choice 2') ||
-        lowerName.includes('choice two') ||
-        lowerName.includes('includes fruit')) {
+    // Check for alternative meal options (Box Lunch, Choice 2, Grab & Go, etc.)
+    if (ALTERNATIVE_MEAL_PATTERN.test(lowerName) || lowerName.includes('includes fruit')) {
       return 'alternative';
+    }
+
+    if (lowerName === 'with' || /^w\/?$/.test(lowerName)) {
+      return 'with';
+    }
+
+    if (lowerName === 'over') {
+      return 'over';
     }
 
     // Check for entrees
@@ -345,8 +550,11 @@ class TitanSchoolsClient {
       return 'entrees';
     }
 
-    // Default to sides (includes Sides, Grain, Fruit, Vegetable, etc.)
-    return 'sides';
+    if (lowerName.includes('side')) {
+      return 'sides';
+    }
+
+    return 'other';
   }
 
   /**
@@ -369,91 +577,131 @@ class TitanSchoolsClient {
   }
 
   /**
-   * Formats recipe categories into a natural language menu string
+   * Formats one meal (main or alternative) as a single line:
+   *   "Mandarin Orange Chicken over Fluffy Brown Rice"
+   *   "PBJ Uncrustable Sandwich with String Cheese and Baked Chips or Crackers"
+   *   "Build-Your-Own Burger or Beef Hot Dog on Bun with Fresh Burger Fixings, American Cheese Slice, and more"
+   *
+   * @param {Object} meal - { entrees, with, over, sides, entreesAreOneMeal }
+   * @param {number} sidesLimit - Max meal-specific sides to list before "and more"; 0 hides them
+   */
+  formatMealLine(meal, sidesLimit = this.mealSidesLimit) {
+    let text = meal.entreesAreOneMeal
+      ? this.joinWithConjunction(meal.entrees, 'and')
+      : meal.entrees.join(this.entreeJoiner);
+
+    if (meal.over.length > 0) {
+      const overText = this.joinWithConjunction(meal.over, 'and');
+      text = text ? `${text} over ${overText}` : overText;
+    }
+
+    const accompaniments = [...meal.with];
+    if (sidesLimit > 0 && meal.sides.length > sidesLimit) {
+      accompaniments.push(...meal.sides.slice(0, sidesLimit), 'more');
+    } else if (sidesLimit > 0) {
+      accompaniments.push(...meal.sides);
+    }
+
+    if (accompaniments.length > 0) {
+      const withText = this.joinWithConjunction(accompaniments, 'and');
+      text = text ? `${text} with ${withText}` : withText;
+    }
+
+    return text;
+  }
+
+  /**
+   * Turns a parsed day into the object sent to the frontend (see fetchMenu() for the shape),
+   * or `null` when there is nothing to show.
+   */
+  formatParsedMenu(parsed) {
+    if (!parsed) {
+      return null;
+    }
+
+    const menu = {
+      main: this.formatMealLine(parsed.main),
+      alternatives: parsed.alternatives
+        .map((meal) => ({
+          label: this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name)),
+          text: this.formatMealLine(meal),
+        }))
+        .filter((alternative) => alternative.text.length > 0),
+      sides: parsed.sharedSides.flatMap((group) => group.recipes),
+      text: this.formatSentence(parsed),
+    };
+
+    return this.mealHasContent(menu) ? menu : null;
+  }
+
+  /**
+   * Formats a parsed day as one natural-language sentence (the `layout: "sentence"` display):
+   *   "Chicken Tenders or Fish Sticks with sides of Brown Rice, Green Beans, and Carrots. Or PBJ Uncrustable with Baked Chips."
+   */
+  formatSentence(parsed) {
+    // Entrees (plus anything served with/over them). Meal-specific sides are folded into the sides list below.
+    const entreesText = this.formatMealLine({ ...parsed.main, sides: [] }, 0);
+    const entreesHaveWithItems = parsed.main.with.length > 0;
+
+    let mainText = "";
+    if (entreesText) {
+      mainText = this.showCategoryLabels ? `Entrees: ${entreesText}` : entreesText;
+    }
+
+    const allSides = [
+      ...parsed.main.sides,
+      ...parsed.sharedSides.flatMap((group) => group.recipes),
+    ];
+    if (allSides.length > 0) {
+      const sidesList = this.joinWithConjunction(allSides, 'and');
+      const sideNoun = allSides.length === 1 ? 'a side of' : 'sides of';
+
+      if (this.showCategoryLabels) {
+        mainText = `${mainText} Sides: ${sidesList}`.trim();
+      } else if (!entreesText) {
+        mainText = sidesList;
+      } else if (entreesHaveWithItems) {
+        // "Tortellini with Marinara Sauce, plus sides of ..." reads better than "with ... with sides of ..."
+        mainText = `${mainText}, plus ${sideNoun} ${sidesList}`;
+      } else {
+        mainText = `${mainText} with ${sideNoun} ${sidesList}`;
+      }
+    }
+
+    const alternativeParts = parsed.alternatives.map((meal, index) => {
+      const itemsText = this.formatMealLine(meal, Infinity);
+      // No label - just show the items with "Or" prefix (except for the very first sentence). Otherwise use the
+      // configured label, replacing the {categoryName} placeholder if present
+      let label;
+      if (this.alternativeLabel !== "") {
+        label = this.alternativeLabel.replace('{categoryName}', this.displayMealName(meal.name));
+      } else if (mainText || index > 0) {
+        label = "Or";
+      } else {
+        label = "";
+      }
+      return `${label} ${itemsText}`.trim();
+    });
+
+    // Main meal (entrees + sides) first, then each alternative as its own sentence
+    const sentences = [mainText, ...alternativeParts].filter((part) => part.length > 0);
+    if (sentences.length === 0) {
+      return "";
+    }
+
+    // Always add trailing period
+    return sentences.join('. ') + '.';
+  }
+
+  /**
+   * Formats a flat list of recipe categories (one unnamed MenuMeal) as a sentence.
+   * Kept for backwards compatibility; new code should use parseMenuMeals() + formatParsedMenu().
+   *
    * @param {Array} recipeCategories - Array of RecipeCategory objects from the API
    * @returns {string} - Formatted menu string
    */
   formatMenu(recipeCategories) {
-    // Group categories by type
-    const categorizedGroups = {
-      entrees: [],
-      sides: [],
-      alternative: []
-    };
-
-    recipeCategories.forEach((recipeCategory) => {
-      const type = this.categorizeRecipeCategory(recipeCategory.CategoryName);
-      const recipes = recipeCategory.Recipes.map(r => r.RecipeName);
-      const mergedRecipes = this.mergeWithItems(recipes);
-
-      categorizedGroups[type].push({
-        categoryName: recipeCategory.CategoryName,
-        recipes: mergedRecipes
-      });
-    });
-
-    // Build the menu text
-    const mainParts = [];
-    const alternativeParts = [];
-
-    // Format entrees
-    if (categorizedGroups.entrees.length > 0) {
-      const allEntrees = categorizedGroups.entrees.flatMap(g => g.recipes);
-      let entreesText = allEntrees.join(this.entreeJoiner);
-
-      if (this.showCategoryLabels) {
-        entreesText = `Entrees: ${entreesText}`;
-      }
-
-      mainParts.push(entreesText);
-    }
-
-    // Format sides
-    if (categorizedGroups.sides.length > 0) {
-      const allSides = categorizedGroups.sides.flatMap(g => g.recipes);
-      let sidesText = this.joinWithConjunction(allSides, 'and');
-
-      if (this.showCategoryLabels) {
-        sidesText = `Sides: ${sidesText}`;
-      } else if (categorizedGroups.entrees.length > 0) {
-        // Add "with a side of" (singular) or "with sides of" (plural) prefix if there are entrees
-        const sidePrefix = allSides.length === 1 ? 'with a side of' : 'with sides of';
-        sidesText = `${sidePrefix} ${sidesText}`;
-      }
-
-      mainParts.push(sidesText);
-    }
-
-    // Format alternative options
-    if (categorizedGroups.alternative.length > 0) {
-      categorizedGroups.alternative.forEach((group) => {
-        const itemsText = this.joinWithConjunction(group.recipes, 'and');
-
-        let alternativeText;
-        if (this.alternativeLabel === "") {
-          // No label - just show the items with "Or" prefix
-          alternativeText = `Or ${itemsText}`;
-        } else {
-          // Use the configured label, replacing {categoryName} placeholder if present
-          const label = this.alternativeLabel.replace('{categoryName}', group.categoryName);
-          alternativeText = `${label} ${itemsText}`;
-        }
-
-        alternativeParts.push(alternativeText);
-      });
-    }
-
-    // Join main parts (entrees + sides) with space, then add alternatives with period separator
-    let result = mainParts.join(' ');
-
-    if (alternativeParts.length > 0) {
-      result += '. ' + alternativeParts.join('. ');
-    }
-
-    // Always add trailing period
-    result += '.';
-
-    return result;
+    return this.formatSentence(this.parseMenuMeals([{ RecipeCategories: recipeCategories }]));
   }
 
   processData(data) {
@@ -492,8 +740,8 @@ class TitanSchoolsClient {
       return {
         date: day.date,
         label: day.label,
-        breakfast: breakfastAndLunchForThisDay.breakfast,
-        lunch: breakfastAndLunchForThisDay.lunch,
+        breakfast: breakfastAndLunchForThisDay.breakfast ?? null,
+        lunch: breakfastAndLunchForThisDay.lunch ?? null,
       };
     });
 
@@ -501,9 +749,8 @@ class TitanSchoolsClient {
 
     if (this.bufferDays > 0) {
       // New behavior: Filter empty days and return N non-empty days
-      // Check for actual content, not just truthy values (excludes empty strings)
       const nonEmptyDays = allUpcomingDays.filter(
-        (day) => (day.breakfast && day.breakfast.trim()) || (day.lunch && day.lunch.trim())
+        (day) => this.mealHasContent(day.breakfast) || this.mealHasContent(day.lunch)
       );
       upcomingMenuByDate = nonEmptyDays.slice(0, this.numberOfDaysToDisplay);
     } else {
@@ -574,12 +821,6 @@ const upcomingRelativeDates = (numberOfDays = 5) => {
   }
   return weekOfRelativeDates;
 };
-
-// const t = new TitanSchoolsClient({
-//   buildingId: '23125610-cbbc-eb11-a2cb-82fe13669c55',
-//   districtId: '93f76ff0-2eb7-eb11-a2c4-e816644282bd',
-// });
-// t.fetchMockMenu();
 
 module.exports = TitanSchoolsClient;
 module.exports.BUFFER_DAYS = BUFFER_DAYS;
